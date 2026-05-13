@@ -156,7 +156,7 @@ local function BuildPanel(panel)
 
     local verFs = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     verFs:SetPoint("LEFT", titleFs, "RIGHT", 6, 0)
-    verFs:SetText("|cff555577v0.1|r")
+    verFs:SetText("|cff5555770.1|r")
 
     local settingsScroll = CreateFrame("ScrollFrame", "WildlySettingsScroll", panel, "UIPanelScrollFrameTemplate")
     settingsScroll:SetPoint("TOPLEFT", panel, "TOPLEFT", 14, -44)
