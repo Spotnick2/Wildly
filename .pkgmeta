@@ -1,0 +1,15 @@
+package-as: Wildly
+
+enable-nolib-creation: no
+
+manual-changelog:
+  filename: CHANGELOG.md
+  markup-type: markdown
+
+ignore:
+  - .github
+  - docs
+  - screenshots
+  - README.md
+  - CHANGELOG.md
+  - LICENSE
