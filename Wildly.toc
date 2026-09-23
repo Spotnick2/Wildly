@@ -1,11 +1,14 @@
-## Interface: 20505
-## Title: |cffff7c0aWildly|r
-## Notes: Pally Power-style Druid buff manager. Druid-only. /wildly help
+## Interface: 16001
+## Title: |cffff7c0aWildly|r Forever
+## Notes: Pally Power-style Druid buff manager for WoW: Forever. Auto-opens on group join. /wildly help
 ## Author: Spotnick
 ## Version: @project-version@
 ## IconTexture: Interface\Icons\Spell_Nature_Regeneration
-## SavedVariables: WildlyDB
+## SavedVariablesPerCharacter: WildlyDB
+## SavedVariables: WildlySVCheck
 ## X-Curse-Project-ID: 1542496
 
+Libs\LibGroupBuffs-1.0\LibGroupBuffs-1.0.xml
+WildlyCompat.lua
 WildlyConfig.lua
 Wildly.lua
