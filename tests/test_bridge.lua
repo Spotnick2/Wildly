@@ -30,16 +30,13 @@ H.check(Wildly.UI == lib.UI, "and Wildly.UI its UI")
 -- The rules every ported file keeps, read from the source
 --
 -- Files the port has not reached yet are the TBC code and break these rules
--- by construction, so they are listed here and skipped. Each slice that
--- ports a file removes it from this list; the check below fails while an
--- entry names a file that no longer carries TBC code, so the list cannot
--- quietly outlive the port.
+-- by construction, so they are skipped: H.NOT_YET_PORTED, shared with
+-- loadAddon. Each slice that ports a file removes it from that list; the
+-- check below fails while an entry names a file that no longer carries TBC
+-- code, so the list cannot quietly outlive the port.
 ------------------------------------------------------------
 
-local NOT_YET_PORTED = {
-    ["WildlyConfig.lua"] = "slice 2 (config)",
-    ["Wildly.lua"]       = "slice 3 (host)",
-}
+local NOT_YET_PORTED = H.NOT_YET_PORTED
 
 local SOURCES = {}
 for _, file in ipairs(H.tocFiles()) do
@@ -239,6 +236,25 @@ H.check(chat:find("r10", 1, true) and chat:find("r11", 1, true),
 H.check(not chat:find("completely", 1, true), "and does not claim a failed load: " .. chat)
 loaded = loadWithout(shaped(11, markers(11)))
 H.check(loaded, "exactly the floor is enough")
+
+-- The ported files stop before building anything when the bridge refused the
+-- library, so a missing library is one message rather than a cascade of
+-- errors and half-made frames.
+Wildly = {}
+local frames = 0
+local realCreateFrame = CreateFrame
+CreateFrame = function(...) frames = frames + 1 return realCreateFrame(...) end
+local stopped = 0
+for _, file in ipairs(H.tocFiles()) do
+    if file ~= "WildlyCompat.lua" and not NOT_YET_PORTED[file] then
+        local ok, why = pcall(dofile, file)
+        H.check(ok, file .. " returns quietly when Wildly.API is missing: " .. tostring(why))
+        stopped = stopped + 1
+    end
+end
+H.check(stopped >= 1, "at least one ported file was checked")
+H.eq(frames, 0, "and creates no frames")
+CreateFrame = realCreateFrame
 
 LibStub, Wildly = savedLibStub, savedWildly
 

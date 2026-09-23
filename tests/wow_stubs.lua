@@ -813,6 +813,11 @@ local KNOWN_ABSENT = {
     LibStub = true,
     -- Wildly: its own globals, which start out nil like any others.
     Wildly = true, WildlyDB = true, WildlySVCheck = true,
+    -- Wildly: the hooks Wildly.lua defines for the config, which the config
+    -- looks up guarded (`if Wildly_ForceRebuild then`), so a test that loads
+    -- the config alone must be able to read them as nil.
+    Wildly_ScheduleRefresh = true, Wildly_ForceRebuild = true,
+    Wildly_ApplyAlpha = true, Wildly_OnSoloToggle = true,
     -- Lua/runtime names the test files themselves touch.
     arg = true, jit = true,
 }

@@ -8,10 +8,8 @@
 --
 -- Run from the repo root so the relative paths resolve.
 --
--- Loading Wildly's own files (loadAddon), spell helpers and the combat
--- secrecy switch arrive with the slices whose tests need them: until the
--- host is ported, WildlyConfig.lua and Wildly.lua are the TBC code and would
--- not load under this stub.
+-- Spell helpers and the combat secrecy switch arrive with the slice whose
+-- tests need them (the host, slice 3).
 ------------------------------------------------------------
 
 local H = { run = 0, failures = 0 }
@@ -77,6 +75,26 @@ function H.loadLibrary()
             .. "(../LibGroupBuffs) or set LIBGROUPBUFFS to its path.", 2)
     end
     for _, file in ipairs(load) do run(root .. "/" .. file) end
+end
+
+-- The TOC's files the port has not reached yet. They are the TBC code, which
+-- neither loads under this stub nor keeps the rules test_bridge scans for, so
+-- loadAddon skips them and so do the scans. The slice that ports a file
+-- removes it here; test_bridge fails while a listed file already uses
+-- Wildly.API, so the list cannot outlive the port.
+H.NOT_YET_PORTED = {
+    ["Wildly.lua"] = "slice 3 (host)",
+}
+
+-- Everything the TOC loads that has been ported, in its order: the library,
+-- then Wildly's files. Returns the test seams (nil until the file that sets
+-- one is ported) and Wildly.API.
+function H.loadAddon()
+    H.loadLibrary()
+    for _, file in ipairs(H.tocFiles()) do
+        if not H.NOT_YET_PORTED[file] then run(file) end
+    end
+    return Wildly._test, Wildly._testConfig, Wildly.API
 end
 
 function H.done(name)

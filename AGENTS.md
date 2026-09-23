@@ -54,14 +54,17 @@ The port lands in slices, one issue and PR each:
 4. **Thorns** — the `membersFor` filter for its five modes.
 5. **In-game pass and release.**
 
-Until slices 2 and 3 land, `WildlyConfig.lua` and `Wildly.lua` are the TBC code and **do not work
-on Forever** (they call `UnitBuff`, `GetSpellInfo` and friends), with or without the library.
-`main` is not releasable in between; nothing is tagged until slice 5.
+Slices 1 and 2 are done. Until slice 3 lands, `Wildly.lua` is the TBC code and **does not work on
+Forever** (it calls `UnitBuff`, `GetSpellInfo` and friends), with or without the library, and it
+still writes `WildlyDB` directly. `main` is not releasable in between; nothing is tagged until
+slice 5.
 
-`tests/test_bridge.lua` keeps a `NOT_YET_PORTED` list of those two files, which its source scans
-skip. The slice that ports a file removes it from the list, and the test fails while a listed file
-already uses `Wildly.API`, so the list cannot outlive the port. Update this section as slices land,
-and delete it when the port is done.
+`tests/harness.lua` keeps `H.NOT_YET_PORTED` (today just `Wildly.lua`). `H.loadAddon()` skips the
+files on it, and so do the source scans in `test_bridge` and `test_config_seam`. The slice that
+ports a file removes it from the list, and `test_bridge` fails while a listed file already uses
+`Wildly.API`, so the list cannot outlive the port. Until then, config tests install spies for the
+hooks `Wildly.lua` will define (`Wildly_ForceRebuild`, `Wildly_OnSoloToggle`, `Wildly_ApplyAlpha`).
+Update this section as slices land, and delete it when the port is done.
 
 ## Repository Layout
 
@@ -113,8 +116,25 @@ Load order from `Wildly.toc`:
    too-old one is named as that, with both versions, since nothing crashed), else exposes it.
    Once ported, `WildlyConfig.lua` and `Wildly.lua` return early when `Wildly.API` is nil, so a
    broken library is one message, not a cascade.
-3. `WildlyConfig.lua` — `WildlyDB` defaults and the `Wildly_*` config helpers.
+3. `WildlyConfig.lua` — `WildlyDB` defaults, the settings object, the options panel and the
+   `Wildly_*` config helpers.
 4. `Wildly.lua` — the host.
+
+`WildlyConfig.lua` exposes: `Wildly_EnsureDefaults`, `Wildly_ShowSolo`, `Wildly_TrackPets`,
+`Wildly_IsBuffEnabled` (`"thorns"` is false in the `disabled` mode), `Wildly_GetThornsMode`,
+`Wildly_GetFrameAlpha`, `Wildly_FrameLocked`, `Wildly_ShowClickHints`, `Wildly_PopoverSide`,
+`Wildly_LearnDuration` / `Wildly_GetLearnedDuration` (for the engine's duration seams),
+`Wildly_OpenConfig`, the write path `Wildly_SetConfig(key, value)` and its hook
+`Wildly_OnConfigChanged(key)` (empty today; the one place a migration or the SavedVariables fix
+lands), and `Wildly_HandleEnteringWorld` / `Wildly_CheckClientBuild`, which its own event frame
+calls. It calls, guarded, the hooks `Wildly.lua` defines: `Wildly_ForceRebuild`,
+`Wildly_OnSoloToggle`, `Wildly_ApplyAlpha`.
+
+Current `WildlyDB` keys: `trackMark`, `thornsMode`, `showSolo`, `trackPets`, `frameAlpha`,
+`popoverSide`, `lockFrame`, `showClickHints` (all in `DEFAULTS`), `learnedDurations` (keyed by
+**spell name**, reset when the client build changes), `visible` and `pos` (the window's own state,
+never defaulted), and `svLoadCheck` (never in `DEFAULTS`). There is no TBC migration: this is a
+separate install, and nothing loads back on this client anyway.
 
 ### Buff definitions
 
@@ -195,8 +215,11 @@ starts from defaults. Write the addon so losing every setting at login is surviv
   something is broken. Confirm with a **full exit and relaunch**.
 - **Every write to `WildlyDB` or `WildlySVCheck` goes through the settings write path**
   (`Wildly_SetConfig`, built on the library's `Settings.New`), except inside
-  `-- config-owner: begin/end` regions in `WildlyConfig.lua`. Slice 2 adds the test that scans
-  for this with the library's `tests/config_scan.lua`; until then nothing enforces it.
+  `-- config-owner: begin/end` regions in `WildlyConfig.lua` (three: the saved-table accessors,
+  `EnsureDefaults`, the learned-duration cache). `tests/test_config_seam.lua` scans every ported
+  file with the library's `tests/config_scan.lua` and pins the region count. Owner code that
+  writes through a local alias reports it with `settings:Changed(key)`: the scan cannot see an
+  alias.
 - **`svLoadCheck` must never be in `DEFAULTS`**: it detects Blizzard's fix by being written every
   session and never defaulted.
 
