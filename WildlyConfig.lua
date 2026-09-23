@@ -111,23 +111,29 @@ end
 -- duration does not call GetBuildInfo for every member of every group.
 local g_Build
 
+-- Every key seeded or repaired here is reported through settings:Changed, the
+-- same as a setter's write: Wildly_OnConfigChanged is where the SavedVariables
+-- fix or a migration lands, and a value it never heard about would never reach
+-- a new store. Cheap, because the hook is.
 -- config-owner: begin
 function Wildly_EnsureDefaults()
-    if not WildlyDB then WildlyDB = {} end
+    local db = CharacterStore()
     -- A client build can only change across a restart, which means a fresh
     -- login, which means this runs again. Re-resolving here is what keeps the
     -- cached build honest while keeping GetBuildInfo off the aura hot path.
     g_Build = nil
     for k, v in pairs(DEFAULTS) do
-        if WildlyDB[k] == nil then
-            WildlyDB[k] = v
+        if db[k] == nil then
+            db[k] = v
+            settings:Changed(k)
         end
     end
     -- A mode this build does not know (a typo, or a later build's) would
     -- otherwise be read as "default" by the getter but shown as nothing in
     -- the panel, where no radio would be checked.
-    if not THORNS_MODES[WildlyDB.thornsMode] then
-        WildlyDB.thornsMode = DEFAULTS.thornsMode
+    if not THORNS_MODES[db.thornsMode] then
+        db.thornsMode = DEFAULTS.thornsMode
+        settings:Changed("thornsMode")
     end
 end
 -- config-owner: end
@@ -142,30 +148,33 @@ end
 -- spell name: Mark of the Wild and Gift of the Wild share a row and need not
 -- share a duration.
 
--- config-owner: begin
+-- The store for THIS client build, or nil. Reading never writes: the engine
+-- asks on the aura hot path, and a stale table from another build simply
+-- answers nothing until something is learned on this one.
 local function DurationStore()
     if not WildlyDB then return nil end
     if not g_Build then g_Build = (API and API.ClientBuild()) or "?" end
     local store = WildlyDB.learnedDurations
-    if not store or store.build ~= g_Build then
-        store = { build = g_Build }
-        WildlyDB.learnedDurations = store
-        -- Replaced from inside a getter, so it reports here or not at all.
-        settings:Changed("learnedDurations")
-    end
-    return store
+    if type(store) == "table" and store.build == g_Build then return store end
+    return nil
 end
 
+-- config-owner: begin
 function Wildly_LearnDuration(spellName, seconds)
     if not spellName or not seconds or seconds <= 0 then return end
+    local db = CharacterStore()
     local store = DurationStore()
-    if not store then return end
     -- Almost every call re-learns the value we already have; only write when it
     -- actually changed.
-    if store[spellName] == seconds then return end
+    if store and store[spellName] == seconds then return end
+    if not store then
+        -- First learn on this build: the only place the table is replaced.
+        store = { build = g_Build }
+        db.learnedDurations = store
+    end
     store[spellName] = seconds
-    -- A write through a local alias, which the source scan cannot see, so it
-    -- reports by hand.
+    -- One write, one report. It went through a local alias, which the source
+    -- scan cannot see, so it reports by hand.
     settings:Changed("learnedDurations")
 end
 -- config-owner: end
@@ -281,11 +290,15 @@ local function SafeFrame(frameType, name, parent, template, proof)
             -- `proof` names a region the template is supposed to bring. Without
             -- it we cannot tell an applied template from a missing one, because
             -- a missing template does not throw - CreateFrame just returns a
-            -- bare frame (Priestly's docs/FOREVER-PROBE.md, section 3).
+            -- bare frame (Priestly's docs/FOREVER-PROBE.md, section 3). The
+            -- region may be a parentKey in either case ("text" / "Text") or
+            -- only a global: templates name it "$parentText", capitalised.
             local applied = true
             if proof then
-                applied = f[proof] ~= nil
-                    or (f.GetName and f:GetName() and _G[f:GetName() .. proof] ~= nil)
+                local Proof = proof:sub(1, 1):upper() .. proof:sub(2)
+                local name = f.GetName and f:GetName()
+                applied = f[proof] ~= nil or f[Proof] ~= nil
+                    or (name ~= nil and (_G[name .. Proof] ~= nil or _G[name .. proof] ~= nil))
             end
             return f, applied
         end
@@ -323,8 +336,12 @@ local function TextHeight(fs, fallback)
     return h
 end
 
--- One rebuild per change. ForceRebuild already re-runs everything
--- ScheduleRefresh would, so asking for both would queue two complete passes.
+-- One rebuild per change, which re-reads every setting. Out of combat it
+-- redraws the window now. In combat nothing about the rows can change - they
+-- are secure buttons - so a change made mid-fight takes effect when the
+-- library rebuilds the visible window at combat end (ui:OnCombatEnd, which
+-- Wildly.lua calls on PLAYER_REGEN_ENABLED). A ScheduleRefresh as well would
+-- only redraw the timers, which no setting here changes.
 local function Rebuild()
     if Wildly_ForceRebuild then Wildly_ForceRebuild() end
 end
@@ -526,6 +543,9 @@ local function BuildPanel(panel)
     -- options UI and is not guaranteed here; the track and fill above are
     -- already ours, so all this needs is a thumb and the input handling.
     local alphaSlider = CreateFrame("Slider", "WildlyAlphaSlider", child)
+    -- The template used to turn the mouse on; without it nothing does, and a
+    -- slider that ignores the mouse cannot be dragged.
+    alphaSlider:EnableMouse(true)
     alphaSlider:SetPoint("TOPLEFT", child, "TOPLEFT", 4, y.v)
     alphaSlider:SetSize(SLIDER_W + 8, 18)
     alphaSlider:SetOrientation("HORIZONTAL")
@@ -622,9 +642,20 @@ local function RegisterPanel()
     end
 end
 
+-- Wildly is class-specific. On anyone else it registers no options page,
+-- creates no saved table and says nothing in chat: the build and settings
+-- notices belong to an addon that is doing something on this character. The
+-- accessors above all cope with WildlyDB being nil. Asked at the event, not at
+-- file scope, where the class is not guaranteed to be known yet.
+local function IsDruid()
+    local _, class = UnitClass("player")
+    return class == "DRUID"
+end
+
 local cfgFrame = CreateFrame("Frame", "WildlyConfigEvents")
 Wildly.RegisterEvents(cfgFrame, "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD")
 cfgFrame:SetScript("OnEvent", function(self, event, isInitialLogin, isReloadingUi)
+    if not IsDruid() then return end
     if event == "PLAYER_LOGIN" then
         Wildly_EnsureDefaults()
         RegisterPanel()
@@ -636,7 +667,7 @@ end)
 function Wildly_OpenConfig()
     if Settings and Settings.OpenToCategory and panel._category then
         Settings.OpenToCategory(panel._category:GetID())
-    else
+    elseif DEFAULT_CHAT_FRAME then
         DEFAULT_CHAT_FRAME:AddMessage(
             "|cffff7c0a[Wildly]|r Options are in Game Menu > Options > AddOns > Wildly.")
     end
@@ -649,6 +680,7 @@ Wildly._testConfig = {
     DEFAULTS           = DEFAULTS,
     THORNS_MODES       = THORNS_MODES,
     DurationStore      = DurationStore,
+    IsDruid            = IsDruid,
     MEASURED_ON_BUILD  = MEASURED_ON_BUILD,
     SV_BROKEN_ON_BUILD = SV_BROKEN_ON_BUILD,
     eventFrame         = function() return cfgFrame end,

@@ -46,12 +46,44 @@ local count = #changed
 Wildly_SetConfig("frameAlpha", 0.5)
 H.eq(#changed, count, "setting the same value again does not report")
 
--- The learned-duration cache is replaced from inside a getter, so it has to
--- report there or it never reports at all.
-WildlyDB.learnedDurations = { build = "old" }
+-- The learned-duration cache. Reading never writes - the engine asks on the
+-- aura hot path - so a table left by another build answers nothing and stays
+-- as it is until something is learned on this one. Then it is replaced once,
+-- and that one write is reported once.
+local stale = { build = "old", ["Mark of the Wild"] = 1800 }
+WildlyDB.learnedDurations = stale
 count = #changed
-Wildly_GetLearnedDuration("Mark of the Wild")
-H.eq(changed[#changed], "learnedDurations", "replacing the duration cache reports")
+H.eq(Wildly_GetLearnedDuration("Mark of the Wild"), nil, "another build's duration is not used")
+H.eq(#changed, count, "and reading it reports nothing")
+H.check(WildlyDB.learnedDurations == stale, "and writes nothing")
+Wildly_LearnDuration("Mark of the Wild", 1200)
+H.check(WildlyDB.learnedDurations ~= stale, "learning on this build replaces the table")
+H.eq(#changed, count + 1, "reported exactly once for the replacement and the value together")
+H.eq(changed[#changed], "learnedDurations", "under the table's key")
+count = #changed
+Wildly_LearnDuration("Mark of the Wild", 1200)
+H.eq(#changed, count, "re-learning the same value is not a change")
+Wildly_LearnDuration("Mark of the Wild", 900)
+H.eq(#changed, count + 1, "a new value is")
+
+-- EnsureDefaults' own writes reach the hook too: it is where the SavedVariables
+-- fix or a migration lands, and a value it never heard about would never reach
+-- a new store.
+WildlyDB = {}
+count = #changed
+Wildly_EnsureDefaults()
+local seeded = {}
+for i = count + 1, #changed do seeded[changed[i]] = true end
+for key in pairs(TC.DEFAULTS) do
+    H.check(seeded[key], "seeding " .. key .. " is reported")
+end
+count = #changed
+Wildly_EnsureDefaults()
+H.eq(#changed, count, "a second run seeds nothing and reports nothing")
+WildlyDB.thornsMode = "raid leaders"
+Wildly_EnsureDefaults()
+H.eq(changed[#changed], "thornsMode", "repairing an unknown Thorns mode is reported")
+H.eq(#changed, count + 1, "and only that")
 
 WildlyDB = nil
 Wildly_SetConfig("lockFrame", true)
@@ -103,6 +135,36 @@ for _, path in ipairs(files) do
     H.eq(regions, expectedRegions[path] or 0, path .. " has the expected owner regions "
         .. "(WildlyConfig: the saved-table accessors, EnsureDefaults, the duration cache)")
 end
+
+------------------------------------------------------------
+-- Wildly is class-specific
+--
+-- On any other class it registers no options page, creates no saved table and
+-- says nothing in chat: a build notice from an addon that does nothing on this
+-- character is noise.
+------------------------------------------------------------
+
+WoW.reset()
+WoW.build = "70123"                 -- not the measured build: a Druid would be warned
+WoW.SetUnit("player", { name = "Karuzo Elegia", class = "MAGE" })
+WildlyDB, WildlySVCheck = nil, nil
+local panelFrame = _G["WildlyOptionsPanel"]
+panelFrame._category = nil
+WoW.dispatch("PLAYER_LOGIN")
+WoW.dispatch("PLAYER_ENTERING_WORLD", true, false)
+H.eq(#WoW.messages, 0, "a Mage hears nothing from Wildly: " .. table.concat(WoW.messages, " | "))
+H.eq(WildlyDB, nil, "gets no saved table")
+H.eq(WildlySVCheck, nil, "in either scope")
+H.eq(panelFrame._category, nil, "and no options page")
+H.eq(Wildly_IsBuffEnabled("mark"), true, "while the accessors still answer without a table")
+
+WoW.SetUnit("player", { name = "Karuzo Elegia", class = "DRUID" })
+WoW.dispatch("PLAYER_LOGIN")
+WoW.dispatch("PLAYER_ENTERING_WORLD", true, false)
+H.check(WildlyDB ~= nil, "a Druid gets the saved table")
+H.check(panelFrame._category ~= nil, "and the options page")
+H.check(table.concat(WoW.messages, " "):find("tested on", 1, true) ~= nil,
+    "and the build notice on a build Wildly was not measured on")
 
 ------------------------------------------------------------
 -- svLoadCheck: has Blizzard fixed it?

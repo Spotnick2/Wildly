@@ -146,6 +146,10 @@ H.eq(WildlyDB.thornsMode, "self", "and choosing a side leaves the Thorns mode al
 
 local slider = _G["WildlyAlphaSlider"]
 H.check(slider ~= nil, "the opacity slider was created")
+-- Template-free, so nothing else turns the mouse on: without this the thumb
+-- cannot be dragged, and a test that calls OnValueChanged directly would never
+-- notice.
+H.eq(slider and slider._mouseEnabled, true, "and it takes the mouse")
 local onValue = slider and slider._scripts.OnValueChanged
 H.check(onValue ~= nil, "with a value handler")
 mark = #calls

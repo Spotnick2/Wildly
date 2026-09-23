@@ -128,7 +128,10 @@ Load order from `Wildly.toc`:
 `Wildly_OnConfigChanged(key)` (empty today; the one place a migration or the SavedVariables fix
 lands), and `Wildly_HandleEnteringWorld` / `Wildly_CheckClientBuild`, which its own event frame
 calls. It calls, guarded, the hooks `Wildly.lua` defines: `Wildly_ForceRebuild`,
-`Wildly_OnSoloToggle`, `Wildly_ApplyAlpha`.
+`Wildly_OnSoloToggle`, `Wildly_ApplyAlpha`. On any class but Druid its event frame does nothing:
+no options page, no `WildlyDB`, no chat notices; the accessors all cope with `WildlyDB` being nil.
+`EnsureDefaults` reports every key it seeds or repairs through `settings:Changed`, and reading a
+learned duration never writes (a stale build's table is replaced only by the next learn).
 
 Current `WildlyDB` keys: `trackMark`, `thornsMode`, `showSolo`, `trackPets`, `frameAlpha`,
 `popoverSide`, `lockFrame`, `showClickHints` (all in `DEFAULTS`), `learnedDurations` (keyed by
