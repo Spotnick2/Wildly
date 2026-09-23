@@ -12,12 +12,16 @@
 dofile("tests/wow_stubs.lua")
 local H = dofile("tests/harness.lua")
 
-local toc = {}
-do
-    local f = assert(io.open("Wildly.toc", "r"), "Wildly.toc is missing")
-    for line in f:lines() do toc[#toc + 1] = (line:gsub("%s+$", "")) end
-    f:close()
+-- One reader for every file this test looks at (H.readFile normalises CRLF),
+-- split into lines once.
+local function lines(path)
+    local text = assert(H.readFile(path), path .. " is missing")
+    local out = {}
+    for line in (text .. "\n"):gmatch("([^\n]*)\n") do out[#out + 1] = (line:gsub("%s+$", "")) end
+    return out
 end
+
+local toc = lines("Wildly.toc")
 
 local function directive(name)
     -- Escape the name: "X-Curse-Project-ID" contains "-", which is a Lua
@@ -28,13 +32,6 @@ local function directive(name)
         if value then return value end
     end
     return nil
-end
-
-local function hasLine(pattern)
-    for _, line in ipairs(toc) do
-        if line:find(pattern, 1, true) then return true end
-    end
-    return false
 end
 
 ------------------------------------------------------------
@@ -79,7 +76,9 @@ H.check(not tostring(directive("SavedVariables")):find("WildlyDB", 1, true),
 
 local entries = {}
 for _, line in ipairs(toc) do
-    if line:match("%.[lx][um][al]$") and not line:match("^##") then entries[#entries + 1] = line end
+    -- Any line starting with "#" is a directive or a comment to the client,
+    -- never a file to load.
+    if line:match("%.[lx][um][al]$") and not line:match("^%s*#") then entries[#entries + 1] = line end
 end
 
 local LIB_XML = "Libs\\LibGroupBuffs-1.0\\LibGroupBuffs-1.0.xml"
@@ -96,7 +95,8 @@ H.eq(#entries, 4, "and nothing else loads")
 -- the release zip is missing the library while every local check passes.
 ------------------------------------------------------------
 
-local pkgmeta = H.readFile(".pkgmeta") or ""
+local pkg = lines(".pkgmeta")
+local pkgmeta = table.concat(pkg, "\n")
 local external = pkgmeta:match("externals:%s*\n%s+([^\n:]+):")
 H.eq(external, "Libs/LibGroupBuffs-1.0", ".pkgmeta embeds the library at Libs/LibGroupBuffs-1.0")
 H.eq(external and (external:gsub("/", "\\") .. "\\LibGroupBuffs-1.0.xml"), LIB_XML,
@@ -131,19 +131,14 @@ H.check(libIgnored, "and Libs/ is git-ignored, so no vendored copy can creep bac
 H.eq(directive("Version"), "@project-version@",
     "the packager substitutes the version; deploy.ps1 rewrites it only in the deployed copy")
 H.check(directive("X-Curse-Project-ID") ~= nil, "the CurseForge project is declared")
-H.check(hasLine("Wildly"), "the title mentions the addon")
+H.check(tostring(directive("Title")):find("Wildly", 1, true) ~= nil,
+    "the Title directive names the addon: " .. tostring(directive("Title")))
 H.eq(directive("X-Curse-Project-ID"), "1542496", "and it is Wildly's CurseForge project")
 
 ------------------------------------------------------------
 -- The packaged zip must not carry internal documents
 ------------------------------------------------------------
 
-local pkg = {}
-do
-    local f = assert(io.open(".pkgmeta", "r"), ".pkgmeta is missing")
-    for line in f:lines() do pkg[#pkg + 1] = line end
-    f:close()
-end
 
 local function ignored(name)
     for _, line in ipairs(pkg) do

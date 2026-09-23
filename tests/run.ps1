@@ -13,11 +13,13 @@
     Usage:
         pwsh tests/run.ps1
         pwsh tests/run.ps1 -Lua "C:\path\to\lua5.1.exe"
+        pwsh tests/run.ps1 -Luac "C:\path\to\luac5.1.exe"
         pwsh tests/run.ps1 -Library "D:\src\LibGroupBuffs"
 #>
 
 param(
     [string]$Lua = "C:\Program Files (x86)\Lua\5.1\lua.exe",
+    [string]$Luac = "",
     [string]$Library = ""
 )
 
@@ -64,22 +66,32 @@ try {
     $failed = 0
 
     # Syntax-check everything that ships, the library included: a parse error
-    # there would show up as a confusing load failure inside every test.
-    $luac = Join-Path (Split-Path -Parent $Lua) "luac.exe"
-    if (Test-Path $luac) {
-        # The library's files come from tests/libfiles.lua, the one reader of
-        # its XML that the harness, deploy.ps1 and CI also use.
-        $libFiles = & $Lua (Join-Path $PSScriptRoot "libfiles.lua") $Library load
-        if ($LASTEXITCODE -ne 0) { Write-Host "LibGroupBuffs file list FAILED" -ForegroundColor Red; exit 1 }
-        $libFiles = $libFiles | ForEach-Object { Join-Path $Library $_ }
-        & $luac -p WildlyCompat.lua WildlyConfig.lua Wildly.lua @libFiles
-        if ($LASTEXITCODE -ne 0) {
-            Write-Host "luac -p FAILED" -ForegroundColor Red
-            exit 1
-        }
-        Remove-Item -LiteralPath (Join-Path $RepoRoot "luac.out") -ErrorAction SilentlyContinue
-        Write-Host "luac -p: ok" -ForegroundColor DarkGray
+    # there would show up as a confusing load failure inside every test. Not
+    # optional: until the host is ported no test loads WildlyConfig.lua or
+    # Wildly.lua, so this is their only local check.
+    $luac = if ($Luac) { $Luac } else { Join-Path (Split-Path -Parent $Lua) "luac.exe" }
+    if (-not (Test-Path $luac)) {
+        Write-Error "luac (Lua 5.1) not found at: $luac  (pass -Luac <path>)"
+        exit 1
     }
+    # The addon's own files come from the TOC, like tests/harness.lua reads
+    # them, so a file added there cannot be missed here.
+    $ownFiles = @(Get-Content (Join-Path $RepoRoot "Wildly.toc") |
+        Where-Object { $_ -notmatch '^\s*#' -and $_ -match '\.lua\s*$' } |
+        ForEach-Object { $_.Trim() })
+    if ($ownFiles.Count -eq 0) { Write-Host "Wildly.toc lists no Lua files" -ForegroundColor Red; exit 1 }
+    # The library's files come from tests/libfiles.lua, the one reader of its
+    # XML that the harness, deploy.ps1 and CI also use.
+    $libFiles = & $Lua (Join-Path $PSScriptRoot "libfiles.lua") $Library load
+    if ($LASTEXITCODE -ne 0) { Write-Host "LibGroupBuffs file list FAILED" -ForegroundColor Red; exit 1 }
+    $libFiles = $libFiles | ForEach-Object { Join-Path $Library $_ }
+    & $luac -p @ownFiles @libFiles
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "luac -p FAILED" -ForegroundColor Red
+        exit 1
+    }
+    Remove-Item -LiteralPath (Join-Path $RepoRoot "luac.out") -ErrorAction SilentlyContinue
+    Write-Host "luac -p: ok" -ForegroundColor DarkGray
 
     Get-ChildItem (Join-Path $PSScriptRoot "test_*.lua") | Sort-Object Name | ForEach-Object {
         Write-Host "-- $($_.Name) " -NoNewline -ForegroundColor Cyan

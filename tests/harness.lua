@@ -2,11 +2,16 @@
 -- harness.lua - tiny assertion harness + addon loader.
 --
 --     local H = dofile("tests/harness.lua")
---     H.loadAddon()
+--     H.loadLibrary()
 --     H.eq(actual, expected, "what this proves")
 --     H.done("test_thing")
 --
 -- Run from the repo root so the relative paths resolve.
+--
+-- Loading Wildly's own files (loadAddon), spell helpers and the combat
+-- secrecy switch arrive with the slices whose tests need them: until the
+-- host is ported, WildlyConfig.lua and Wildly.lua are the TBC code and would
+-- not load under this stub.
 ------------------------------------------------------------
 
 local H = { run = 0, failures = 0 }
@@ -22,12 +27,6 @@ end
 function H.eq(a, b, msg)
     H.check(a == b, (msg or "values differ") ..
         "  (expected " .. tostring(b) .. ", got " .. tostring(a) .. ")")
-end
-
-function H.near(a, b, tol, msg)
-    tol = tol or 0.001
-    H.check(type(a) == "number" and math.abs(a - b) <= tol,
-        (msg or "values differ") .. "  (expected ~" .. tostring(b) .. ", got " .. tostring(a) .. ")")
 end
 
 -- A whole file as text with CRLF normalised, or nil if it does not exist.
@@ -78,43 +77,6 @@ function H.loadLibrary()
             .. "(../LibGroupBuffs) or set LIBGROUPBUFFS to its path.", 2)
     end
     for _, file in ipairs(load) do run(root .. "/" .. file) end
-end
-
--- Everything the TOC loads, in its order: the library, then Wildly's files.
-function H.loadAddon()
-    H.loadLibrary()
-    for _, file in ipairs(H.tocFiles()) do run(file) end
-    return Wildly._test, Wildly._testConfig, Wildly.API
-end
-
--- The buffs, by the IDs Wildly.lua uses.
-H.SPELL = {
-    MARK_SINGLE = 1126, MARK_GROUP = 21849,
-    THORNS      = 467,
-}
-H.NAME = {
-    MARK_SINGLE = "Mark of the Wild",
-    MARK_GROUP  = "Gift of the Wild",
-    THORNS      = "Thorns",
-}
-
--- Teach the stub client every spell name, and make `known` (a list of keys
--- into H.SPELL) the ones the player actually has.
-function H.TeachSpells(known)
-    for key, id in pairs(H.SPELL) do
-        WoW.DefineSpell(id, H.NAME[key])
-    end
-    for _, key in ipairs(known or {}) do
-        WoW.Know(H.SPELL[key], H.NAME[key])
-    end
-end
-
--- Combat aura secrecy as measured on the live client: the flag is set AND
--- every index read throws, while the by-name lookup quietly returns nil.
-function H.secrecy(on)
-    WoW.secret = on and true or false
-    WoW.auraReadsThrow = on and true or false
-    WoW.inCombat = on and true or false
 end
 
 function H.done(name)

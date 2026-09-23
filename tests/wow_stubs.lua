@@ -6,7 +6,9 @@
 -- 5.1 (the interpreter WoW uses), with no game client.
 --
 -- Started as a copy of LibGroupBuffs' tests/wow_stubs.lua, which models the
--- client's combat refusals most completely. Wildly's additions are marked.
+-- client's combat refusals most completely. Every change from that copy is
+-- marked "Wildly:", so the two can be compared and a library fix carried
+-- over. (Sharing one stub instead is LibGroupBuffs' decision to make.)
 --
 -- Only what the addon touches at load time, plus the APIs the functions under
 -- test call. Tests drive behaviour through the exported `WoW` table:
@@ -46,7 +48,7 @@ function WoW.reset()
     WoW.range       = {}         -- [unit] = true | false | nil
     WoW.inRaid      = false
     WoW.groupMembers = 0
-    WoW.raidRoster  = {}         -- { { name, rank, subgroup }, ... }
+    WoW.raidRoster  = {}         -- { { name, rank, subgroup, role }, ... }
     WoW.instanceName = ""
     WoW.instanceType = nil       -- nil = derive from instanceName
     WoW.itemCounts  = {}         -- [itemID] = count, treated as sitting in bag 0
@@ -66,6 +68,7 @@ function WoW.reset()
     WoW.auraReadsThrow = false   -- combat secrecy: index reads throw
     WoW.aurasAreSecret = false   -- combat secrecy: the struct's fields throw
 
+    -- Wildly: the player is a Druid (the library stub makes a Priest).
     WoW.SetUnit("player", { name = "Wildly Testcase", class = "DRUID", level = 20 })
 end
 
@@ -74,10 +77,11 @@ function WoW.SetUnit(unit, info)
     WoW.units[unit] = {
         name      = info.name or unit,
         guid      = info.guid or ("GUID-" .. (info.name or unit)),
-        class     = info.class or "DRUID",
+        class     = info.class or "DRUID",   -- Wildly: was PRIEST
         connected = info.connected ~= false,
         dead      = info.dead or false,
         level     = info.level or 20,
+        role      = info.role,   -- Wildly: UnitGroupRolesAssigned's answer
     }
     return WoW.units[unit]
 end
@@ -478,9 +482,21 @@ function InCombatLockdown() return WoW.inCombat end
 -- is what let a call to it survive into a shipped build.
 function strtrim(s) return (tostring(s or ""):gsub("^%s+", ""):gsub("%s+$", "")) end
 function strmatch(s, pattern) return string.match(s, pattern) end
+-- Wildly: the client keeps empty fields - strsplit(",", "a,,b") is "a", "",
+-- "b" - and treats every character of `sep` as a delimiter.
 function strsplit(sep, s)
-    local out = {}
-    for piece in tostring(s):gmatch("([^" .. sep .. "]+)") do out[#out + 1] = piece end
+    local out, piece = {}, {}
+    s = tostring(s)
+    for i = 1, #s do
+        local c = s:sub(i, i)
+        if sep:find(c, 1, true) then
+            out[#out + 1] = table.concat(piece)
+            piece = {}
+        else
+            piece[#piece + 1] = c
+        end
+    end
+    out[#out + 1] = table.concat(piece)
     return unpack(out)
 end
 function date(fmt) return "2026-09-20 00:00:00" end
@@ -540,10 +556,34 @@ end
 
 function IsInRaid() return WoW.inRaid end
 function GetNumGroupMembers() return WoW.groupMembers end
+-- Wildly: the full tuple, because Thorns reads the 10th value (the raid role,
+-- "MAINTANK" / "MAINASSIST" / nil). GetRaidRosterInfo is only in the dump's
+-- undocumented globals, so this is the Retail FrameXML shape - name, rank,
+-- subgroup, level, class, fileName, zone, online, isDead, role, isML,
+-- combatRole - and NOT yet measured on Forever. Wildly's AGENTS.md lists it
+-- for the in-game pass.
 function GetRaidRosterInfo(i)
     local e = WoW.raidRoster[i]
     if not e then return nil end
-    return e.name, e.rank or 0, e.subgroup or 1
+    local u = unitInfo("raid" .. i)
+    return e.name, e.rank or 0, e.subgroup or 1, u and u.level or 1,
+        u and u.class or nil, u and u.class or nil, "", not u or u.connected,
+        u and u.dead or false, e.role, false, e.combatRole or "NONE"
+end
+-- Wildly: both declared in the 69977 dump -
+--   UnitIsUnit(unit1:UnitToken, unit2:UnitToken) -> result:bool
+--   UnitGroupRolesAssigned(optional unit:UnitToken) -> result:cstring
+-- Two tokens are the same unit when they name the same character, which is
+-- what "raid3" and "player" are when you are raid3.
+function UnitIsUnit(a, b)
+    local ua, ub = unitInfo(a), unitInfo(b)
+    return (ua ~= nil and ub ~= nil and ua.guid == ub.guid) and true or false
+end
+-- What it returns without a role set (no LFG on this client) is NOT yet
+-- measured; "NONE" is Retail's answer and what this stub assumes.
+function UnitGroupRolesAssigned(unit)
+    local u = unitInfo(unit or "player")
+    return u and u.role or "NONE"
 end
 function GetInstanceInfo()
     -- Outdoors the live client returns the continent name with instanceType
@@ -768,9 +808,10 @@ local KNOWN_ABSENT = {
     GetAddOnMetadata = true, InterfaceOptions_AddCategory = true,
     InterfaceOptionsFrame_OpenToCategory = true,
     loadstring_untainted = true, SecureHandlerWrapScript = true,
-    -- LibStub looks itself up before it exists.
+    -- LibStub looks itself up before it exists. (Wildly: the library stub also
+    -- allows a LibGroupBuffs global; the library creates none, so this does not.)
     LibStub = true,
-    -- Wildly's own globals, which start out nil like any others.
+    -- Wildly: its own globals, which start out nil like any others.
     Wildly = true, WildlyDB = true, WildlySVCheck = true,
     -- Lua/runtime names the test files themselves touch.
     arg = true, jit = true,

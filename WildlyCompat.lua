@@ -33,7 +33,7 @@ if LibStub then lib, minor = LibStub("LibGroupBuffs-1.0", true) end
 local problem
 if not lib then
     problem = "the LibGroupBuffs-1.0 library is missing from Wildly's Libs folder"
-elseif not (type(minor) == "number" and minor >= NEEDS_MINOR
+elseif not (type(minor) == "number"
             and lib.compatMinor == minor and lib.settingsMinor == minor
             and lib.engineMinor == minor and lib.uiMinor == minor
             and type(lib.API) == "table" and type(lib.API.RegisterEventsReported) == "function"
@@ -42,13 +42,21 @@ elseif not (type(minor) == "number" and minor >= NEEDS_MINOR
             and type(lib.Engine) == "table" and type(lib.Engine.New) == "function"
             and type(lib.UI) == "table" and type(lib.UI.New) == "function") then
     problem = "the LibGroupBuffs-1.0 library failed to load completely"
+elseif minor < NEEDS_MINOR then
+    -- Complete, just old. Said separately, because it is a different fault:
+    -- nothing crashed. LibStub runs the newest copy any addon brought, so an
+    -- older one being active means Wildly's own copy is missing or stale.
+    problem = "the LibGroupBuffs-1.0 library in use is r" .. minor
+        .. ", older than the r" .. NEEDS_MINOR .. " this Wildly needs"
 end
 
 if problem then
     -- Said in chat, not only thrown: Lua errors are hidden by default on this
     -- client, and without this line the addon would just be silently dead.
-    -- WildlyConfig.lua and Wildly.lua both check Wildly.API and stop before
-    -- building anything, so there is exactly one message.
+    -- Once they are ported (AGENTS.md, Port status), WildlyConfig.lua and
+    -- Wildly.lua check Wildly.API and stop before building anything, so this
+    -- is the only message. Until then they are the TBC code, which does not
+    -- run on this client with or without the library.
     if DEFAULT_CHAT_FRAME then
         DEFAULT_CHAT_FRAME:AddMessage("|cffff7c0a[Wildly]|r |cffff6666Wildly cannot start:|r "
             .. problem .. ". Reinstalling Wildly should fix it.")

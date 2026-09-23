@@ -27,6 +27,83 @@ H.check(Wildly.Engine == lib.Engine, "and Wildly.Engine its Engine")
 H.check(Wildly.UI == lib.UI, "and Wildly.UI its UI")
 
 ------------------------------------------------------------
+-- The rules every ported file keeps, read from the source
+--
+-- Files the port has not reached yet are the TBC code and break these rules
+-- by construction, so they are listed here and skipped. Each slice that
+-- ports a file removes it from this list; the check below fails while an
+-- entry names a file that no longer carries TBC code, so the list cannot
+-- quietly outlive the port.
+------------------------------------------------------------
+
+local NOT_YET_PORTED = {
+    ["WildlyConfig.lua"] = "slice 2 (config)",
+    ["Wildly.lua"]       = "slice 3 (host)",
+}
+
+local SOURCES = {}
+for _, file in ipairs(H.tocFiles()) do
+    local text = H.readFile(file)
+    H.check(text ~= nil, "the TOC lists " .. file .. ", which exists")
+    if NOT_YET_PORTED[file] then
+        -- Still the TBC code if it has not started using the library: a
+        -- ported file reads Wildly.API, even just to stop without it.
+        H.check(text and not text:find("Wildly.API", 1, true),
+            file .. " is listed as not yet ported (" .. NOT_YET_PORTED[file]
+            .. ") and is still the TBC code - drop it from NOT_YET_PORTED once it is ported")
+    else
+        local code = {}
+        for line in ((text or "") .. "\n"):gmatch("([^\n]*)\n") do
+            code[#code + 1] = (line:gsub("%-%-.*$", ""))
+        end
+        SOURCES[file] = code
+    end
+end
+H.check(SOURCES["WildlyCompat.lua"] ~= nil, "the bridge itself is scanned")
+
+-- Every API function a ported file calls exists in the library: the point of
+-- the library is one copy, and a missing one only fails in game.
+for file, lines in pairs(SOURCES) do
+    for _, code in ipairs(lines) do
+        for name in code:gmatch("%f[%w_]API%.([%a_][%w_]*)") do
+            local want = (name == "eventFailures" or name == "eventFailuresByOwner") and "table" or "function"
+            H.check(type(API[name]) == want, file .. " uses API." .. name .. ", so the library must provide it")
+        end
+    end
+end
+
+-- No library function copied into a local. API is shared by every addon that
+-- embeds the library, and a newer copy upgrades it in place: `local F = API.F`
+-- taken at load time keeps running the old version. Call through API, or
+-- wrap: `local function F(...) return API.F(...) end`.
+local captures = {}
+for file, lines in pairs(SOURCES) do
+    for n, code in ipairs(lines) do
+        -- Qualified too: `lib.API.F` and `Wildly.API.F` are the same copy.
+        if code:find("=%s*[%w_%.]-%f[%w_]API%.[%a_][%w_]*%s*$")
+            or code:find("=%s*[%w_%.]-%f[%w_]API%.[%a_][%w_]*%s*;") then
+            captures[#captures + 1] = file .. ":" .. n .. "  " .. code
+        end
+    end
+end
+H.eq(#captures, 0, "no file copies a library function into a local: " .. table.concat(captures, " | "))
+
+-- Events only through Wildly.RegisterEvents. A bare frame:RegisterEvent
+-- throws on an unknown name or returns false, and the library's own
+-- registration prints nothing, so either can leave a handler silently dead.
+local direct = {}
+for file, lines in pairs(SOURCES) do
+    for n, code in ipairs(lines) do
+        -- WildlyCompat.lua holds the wrapper itself, the one allowed caller.
+        if file ~= "WildlyCompat.lua" and (code:find("%f[%w_]API%.RegisterEvents%w*%s*%(")
+                                           or code:find(":RegisterEvent%s*%(")) then
+            direct[#direct + 1] = file .. ":" .. n .. "  " .. code
+        end
+    end
+end
+H.eq(#direct, 0, "nothing registers events except through Wildly.RegisterEvents: " .. table.concat(direct, " | "))
+
+------------------------------------------------------------
 -- Rejected events are reported in chat
 --
 -- The library returns them instead of printing, because it must not write to
@@ -97,84 +174,71 @@ loaded, err, chat = loadWithout(halfLoaded)
 H.check(not loaded, "a library that failed to load completely is refused too")
 H.check(chat:find("completely", 1, true), "and reported as that, not as missing: " .. chat)
 
--- An older copy that loaded completely but predates Settings (r3) or Engine
--- (r4): refused at the door, not as a nil call when Wildly builds them.
-local r3Shaped = setmetatable({}, { __call = function()
-    return { API = { RegisterEventsReported = function() return true end,
-                     ClickEdges = function() end } }
-end })
-loaded, err, chat = loadWithout(r3Shaped)
-H.check(not loaded, "a library without Settings is refused")
-H.check(chat:find("completely", 1, true), "with the same message: " .. chat)
-
-local r4Shaped = setmetatable({}, { __call = function()
-    return { API = { RegisterEventsReported = function() return true end,
-                     ClickEdges = function() end },
-             Settings = { New = function() end } }
-end })
-loaded, err, chat = loadWithout(r4Shaped)
-H.check(not loaded, "a library without Engine is refused")
-H.check(chat:find("completely", 1, true), "with the same message: " .. chat)
-
--- Engine.lua threw after defining Engine.New but before its methods, so its
--- last line - the engineMinor marker - never ran. Accepting it would fail
--- later as "attempt to call method 'GroupStat' (a nil value)" mid-refresh.
-local halfEngine = setmetatable({}, { __call = function()
-    return { API = { RegisterEventsReported = function() return true end,
-                     ClickEdges = function() end },
-             Settings = { New = function() end }, settingsMinor = 5,
-             Engine = { New = function() end } }
-end })
-loaded, err, chat = loadWithout(halfEngine)
-H.check(not loaded, "an Engine.lua that did not load to the end is refused")
-H.check(chat:find("completely", 1, true), "with the same message: " .. chat)
-
-local halfSettings = setmetatable({}, { __call = function()
-    return { API = { RegisterEventsReported = function() return true end,
-                     ClickEdges = function() end },
-             Settings = { New = function() end },
-             Engine = { New = function() end }, engineMinor = 5 }
-end })
-loaded, err, chat = loadWithout(halfSettings)
-H.check(not loaded, "and so is a Settings.lua that did not")
-
--- A complete library, as LibStub reports it: its markers equal its MINOR.
-local function shaped(minor, markers)
+-- Each case below is a library that is complete except for ONE piece, and
+-- newer than the floor, so that piece is the only reason it can be refused.
+-- (A fake with no MINOR at all is refused by the first check whatever else is
+-- wrong with it, and proves nothing about the rest.)
+local function shaped(minor, markers, drop)
     local l = { API = { RegisterEventsReported = function() return true end,
                         ClickEdges = function() end },
                 Settings = { New = function() end }, Engine = { New = function() end },
                 UI = { New = function() end } }
     for k, v in pairs(markers) do l[k] = v end
+    if drop then drop(l) end
     return setmetatable({}, { __call = function() return l, minor end })
 end
-local ALL11 = { compatMinor = 11, settingsMinor = 11, engineMinor = 11, uiMinor = 11 }
-loaded = loadWithout(shaped(11, ALL11))
-H.check(loaded, "a library whose every marker equals its MINOR is accepted")
+local function markers(n)
+    return { compatMinor = n, settingsMinor = n, engineMinor = n, uiMinor = n }
+end
+
+loaded = loadWithout(shaped(12, markers(12)))
+H.check(loaded, "a complete library newer than the floor is accepted - the baseline for the cases below")
+
+local MISSING_PIECES = {
+    { "Settings",  function(l) l.Settings = nil end },
+    { "Settings.New", function(l) l.Settings.New = nil end },
+    { "Engine",    function(l) l.Engine = nil end },
+    { "Engine.New", function(l) l.Engine.New = nil end },
+    { "UI",        function(l) l.UI = nil end },
+    { "UI.New",    function(l) l.UI.New = nil end },
+    { "API.RegisterEventsReported", function(l) l.API.RegisterEventsReported = nil end },
+    { "API.ClickEdges", function(l) l.API.ClickEdges = nil end },
+    -- A file that threw before its last line: its marker never ran.
+    { "compatMinor", function(l) l.compatMinor = nil end },
+    { "settingsMinor", function(l) l.settingsMinor = nil end },
+    { "engineMinor", function(l) l.engineMinor = nil end },
+    { "uiMinor",   function(l) l.uiMinor = nil end },
+}
+for _, case in ipairs(MISSING_PIECES) do
+    loaded, err, chat = loadWithout(shaped(12, markers(12), case[2]))
+    H.check(not loaded, "a library without " .. case[1] .. " is refused")
+    H.check(chat:find("completely", 1, true), "as one that failed to load completely: " .. chat)
+end
+
+-- Another addon loaded a newer copy first, and one of its files threw
+-- partway: LibStub reports that newer MINOR, but that file's marker is still
+-- the older copy's, over a half-replaced table. Present is not enough - it has
+-- to be the ACTIVE copy's.
+for _, key in ipairs({ "compatMinor", "settingsMinor", "engineMinor", "uiMinor" }) do
+    local m = markers(12)
+    m[key] = 11
+    loaded, err, chat = loadWithout(shaped(12, m))
+    H.check(not loaded, "an older copy's " .. key .. " under a newer MINOR is refused")
+    H.check(chat:find("completely", 1, true), "as a library that failed to load completely: " .. chat)
+end
 
 -- A complete, self-consistent copy that is simply too old: one MINOR behind
--- what this build needs (NEEDS_MINOR). Behaviour is what separates them -
--- r11 lets Wildly colour the popover divider, which r10 would quietly draw
--- in Priestly's blue - and behaviour cannot be feature-detected, so the
--- floor is a version check.
-loaded, err, chat = loadWithout(shaped(10,
-    { compatMinor = 10, settingsMinor = 10, engineMinor = 10, uiMinor = 10 }))
+-- what this build needs (NEEDS_MINOR). Behaviour is what separates them - r11
+-- lets Wildly colour the popover divider, which r10 would quietly draw in
+-- Priestly's blue - and behaviour cannot be feature-detected, so the floor is
+-- a version check. Nothing crashed, so the message must not say it did.
+loaded, err, chat = loadWithout(shaped(10, markers(10)))
 H.check(not loaded, "a complete library older than the one this build needs is refused")
-H.check(chat:find("completely", 1, true), "with the reinstall message: " .. chat)
-
--- Another addon loaded a newer copy first, and its UI.lua threw partway:
--- LibStub reports that newer MINOR, but uiMinor is still the older copy's,
--- over a half-replaced UI. Present is not enough - it has to be the ACTIVE
--- copy's.
--- These copies are newer than the floor, so the markers are the only thing
--- that can refuse them.
-loaded, err, chat = loadWithout(shaped(12,
-    { compatMinor = 12, settingsMinor = 12, engineMinor = 12, uiMinor = 11 }))
-H.check(not loaded, "a marker left by an older copy is refused")
-H.check(chat:find("completely", 1, true), "as a library that failed to load completely: " .. chat)
-loaded = loadWithout(shaped(12, { compatMinor = 11, settingsMinor = 12, engineMinor = 12, uiMinor = 12 }))
-H.check(not loaded, "including Compat.lua's own marker")
-loaded = loadWithout(shaped(12, { settingsMinor = 12, engineMinor = 12, uiMinor = 12 }))
-H.check(not loaded, "and a Compat.lua that never reached its last line")
+H.check(chat:find("r10", 1, true) and chat:find("r11", 1, true),
+    "the message names the version in use and the one needed: " .. chat)
+H.check(not chat:find("completely", 1, true), "and does not claim a failed load: " .. chat)
+loaded = loadWithout(shaped(11, markers(11)))
+H.check(loaded, "exactly the floor is enough")
 
 LibStub, Wildly = savedLibStub, savedWildly
 

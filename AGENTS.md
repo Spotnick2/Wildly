@@ -54,9 +54,14 @@ The port lands in slices, one issue and PR each:
 4. **Thorns** — the `membersFor` filter for its five modes.
 5. **In-game pass and release.**
 
-Until slice 3 lands, `Wildly.lua` and `WildlyConfig.lua` are the TBC code and **do not work on
-Forever** (they call `UnitBuff`, `GetSpellInfo` and friends). Nothing is released in between.
-Update this section as slices land, and delete it when the port is done.
+Until slices 2 and 3 land, `WildlyConfig.lua` and `Wildly.lua` are the TBC code and **do not work
+on Forever** (they call `UnitBuff`, `GetSpellInfo` and friends), with or without the library.
+`main` is not releasable in between; nothing is tagged until slice 5.
+
+`tests/test_bridge.lua` keeps a `NOT_YET_PORTED` list of those two files, which its source scans
+skip. The slice that ports a file removes it from the list, and the test fails while a listed file
+already uses `Wildly.API`, so the list cannot outlive the port. Update this section as slices land,
+and delete it when the port is done.
 
 ## Repository Layout
 
@@ -104,8 +109,9 @@ against the working copy, merge, tag `r<MINOR>`. Then bump the pin here: `tag:` 
 Load order from `Wildly.toc`:
 
 1. `Libs\LibGroupBuffs-1.0\LibGroupBuffs-1.0.xml` — LibStub, then Compat, Settings, Engine, UI.
-2. `WildlyCompat.lua` — refuses a missing, broken or too-old library with a chat message, else
-   exposes it. `WildlyConfig.lua` and `Wildly.lua` return early when `Wildly.API` is nil, so a
+2. `WildlyCompat.lua` — refuses a missing, broken or too-old library with a chat message (a
+   too-old one is named as that, with both versions, since nothing crashed), else exposes it.
+   Once ported, `WildlyConfig.lua` and `Wildly.lua` return early when `Wildly.API` is nil, so a
    broken library is one message, not a cascade.
 3. `WildlyConfig.lua` — `WildlyDB` defaults and the `Wildly_*` config helpers.
 4. `Wildly.lua` — the host.
@@ -147,8 +153,13 @@ Two traps the TBC code fell into, which the filter must not repeat:
   only the first name for anyone but the player. The main-tank role comes from
   `GetRaidRosterInfo(i)` and belongs to the unit `"raid"..i` — match by index.
 
-Whether `UnitGroupRolesAssigned` returns anything on this client (there is no LFG) is **not yet
-measured**. If it does not, a party has no tanks and `default` shows no Thorns row there.
+Not yet measured, and needed before this ships:
+
+- Whether `UnitGroupRolesAssigned` returns anything but `"NONE"` on this client (there is no LFG).
+  If not, a party has no tanks and `default` shows no Thorns row there.
+- `GetRaidRosterInfo`'s return shape. It is only in the dump's undocumented globals; the stub
+  models the Retail tuple (role 10th). `UnitIsUnit` and `UnitGroupRolesAssigned` are declared in
+  the dump.
 
 ### Reagents
 
@@ -184,8 +195,8 @@ starts from defaults. Write the addon so losing every setting at login is surviv
   something is broken. Confirm with a **full exit and relaunch**.
 - **Every write to `WildlyDB` or `WildlySVCheck` goes through the settings write path**
   (`Wildly_SetConfig`, built on the library's `Settings.New`), except inside
-  `-- config-owner: begin/end` regions in `WildlyConfig.lua`. A test scans for this with the
-  library's `tests/config_scan.lua`.
+  `-- config-owner: begin/end` regions in `WildlyConfig.lua`. Slice 2 adds the test that scans
+  for this with the library's `tests/config_scan.lua`; until then nothing enforces it.
 - **`svLoadCheck` must never be in `DEFAULTS`**: it detects Blizzard's fix by being written every
   session and never defaulted.
 
@@ -245,14 +256,15 @@ The window is LibGroupBuffs' `UI.lua`, which owns these rules; do not reimplemen
 Offline, on every change:
 
 ```powershell
-pwsh tests\run.ps1        # luac -p + all unit tests; needs ../LibGroupBuffs checked out
+pwsh tests\run.ps1        # luac -p + all unit tests; needs ../LibGroupBuffs and Lua 5.1's luac
 ```
 
 The first line names the library checkout and revision the tests ran against, next to the tag a
 release would ship. They differ while working on both; they must match before a release.
 
 `tests/wow_stubs.lua` is an **allowlist**: reading any global it does not define fails the run. It
-started as a copy of LibGroupBuffs' stub. Before stubbing a new global, confirm it exists in the
+started as a copy of LibGroupBuffs' stub, and every difference is marked `Wildly:` so a library
+fix can be carried over; `tests/test_stub.lua` pins those differences. Before stubbing a new global, confirm it exists in the
 newest `C:/Projects/References/forever-api-<build>.md` and stub it with the client's exact
 signature; never add one because a test failed. Strict globals do not cover **methods** — for
 anything built on a widget method, execute it and assert what it produced.
@@ -272,7 +284,7 @@ pwsh Tools\deploy.ps1
 - Rows appear for what the Druid actually knows; no Gift wiring when Gift is not known.
 - Left and right click cast, out of combat and in combat, on yourself and a party member.
 - Thorns: each mode, solo, party and raid; in a raid, "self" finds you as `raidN`; a main tank with
-  a surname is found.
+  a surname is found. Record what `UnitGroupRolesAssigned` and `GetRaidRosterInfo` actually return.
 - Enter combat: timers count from the cache; a member never seen shows `?`, not `MISS`.
 - Roster churn: invite/leave, reshuffle subgroups, pets — state follows the player, not the slot.
 - Footer: the right reagent for the known Gift rank, and its count.

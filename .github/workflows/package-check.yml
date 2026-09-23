@@ -37,7 +37,11 @@ jobs:
           # harness, run.ps1 and deploy.ps1 use it too.
           lib=../LibGroupBuffs
           files=$(lua5.1 tests/libfiles.lua "$lib" load) || exit 1
-          luac5.1 -p WildlyCompat.lua WildlyConfig.lua Wildly.lua \
+          # The addon's own files from the TOC, as run.ps1 and the harness
+          # read them, so a new file cannot be left out here.
+          own=$(tr -d '\r' < Wildly.toc | grep -v '^[[:space:]]*#' | grep -E '\.lua[[:space:]]*$')
+          test -n "$own" || { echo "Wildly.toc lists no Lua files"; exit 1; }
+          luac5.1 -p $own \
             $(printf '%s\n' $files | sed "s|^|$lib/|")
 
       - name: Unit tests
