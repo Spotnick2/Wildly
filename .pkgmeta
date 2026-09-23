@@ -2,6 +2,15 @@ package-as: Wildly
 
 enable-nolib-creation: no
 
+# The shared buff engine, window and compat layer. Pinned to a library tag so a
+# Wildly release cannot change underneath its own source. The tag must equal
+# NEEDS_MINOR in WildlyCompat.lua; tests/test_manifest.lua checks that, and
+# this path against the TOC.
+externals:
+  Libs/LibGroupBuffs-1.0:
+    url: https://github.com/Spotnick2/LibGroupBuffs
+    tag: r11
+
 manual-changelog:
   filename: CHANGELOG.md
   markup-type: markdown
@@ -9,7 +18,11 @@ manual-changelog:
 ignore:
   - .github
   - docs
+  - AGENTS.md
+  - CLAUDE.md
   - screenshots
+  - tests
+  - Tools
   - README.md
   - CHANGELOG.md
   - LICENSE
