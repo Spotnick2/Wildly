@@ -18,8 +18,10 @@ local _, TC = H.loadAddon()
 -- while the addon warns at every real login on the build people are actually
 -- running - and, worse, treats that build as one where saved settings work,
 -- so a relog to character select can announce a fix that never happened.
--- Moving the client forward has to be a two-file edit, and this is the file
--- that says so.
+-- Moving the client forward is a three-file edit - WildlyConfig.lua, this
+-- file, and the stub's default WoW.build - and the checks below fail until
+-- all three agree. What no test can catch is all three being stale against
+-- the client; that takes .build.info or GetBuildInfo() on the real game.
 local MEASURED = "69977"
 local BROKEN = "69977"
 local FIXED = "70123"   -- any build other than the two above
@@ -28,6 +30,9 @@ H.eq(TC.MEASURED_ON_BUILD, MEASURED,
     "the source says Wildly was measured on the build these tests measure it on")
 H.eq(TC.SV_BROKEN_ON_BUILD, BROKEN,
     "and on the build where saved settings are known not to come back")
+WoW.reset()
+H.eq(WoW.build, MEASURED,
+    "and the stub's default session runs on that build, so every other test does too")
 
 ------------------------------------------------------------
 -- The setters
@@ -157,7 +162,7 @@ end
 ------------------------------------------------------------
 
 WoW.reset()
-WoW.build = "70123"                 -- not the measured build: a Druid would be warned
+WoW.build = FIXED                   -- not the measured build: a Druid would be warned
 WoW.SetUnit("player", { name = "Karuzo Elegia", class = "MAGE" })
 WildlyDB, WildlySVCheck = nil, nil
 local panelFrame = _G["WildlyOptionsPanel"]

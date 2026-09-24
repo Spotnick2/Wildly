@@ -61,9 +61,8 @@ local DEFAULTS = {
 -- 69977 (installed: .build.info, wow_classic_beta 1.60.1.69977). Its API dump
 -- and 69913's are identical sets - documented functions, events, enums and
 -- structures, widget methods, namespace functions - and the SavedVariables
--- bug survives both (PORTING-TBC-TO-FOREVER.md section 0). The test pins
--- these literally, so a build that moves on cannot pass by agreeing with
--- itself.
+-- bug survives both (PORTING-TBC-TO-FOREVER.md section 0). The config-seam
+-- test pins these literally, so a bump here alone fails it.
 local MEASURED_ON_BUILD = "69977"
 local SV_BROKEN_ON_BUILD = "69977"
 
