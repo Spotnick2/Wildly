@@ -54,9 +54,11 @@ The port lands in slices, one issue and PR each:
 4. **Thorns** — the `membersFor` filter for its five modes.
 5. **In-game pass and release.**
 
-Slices 1 to 4 are done: every file is on the library, and Thorns has its member filter. What is
-left is slice 5 - the in-game pass, the release notes and a tag - so `main` is not released until
-then.
+Slices 1 to 4 are done and **v1.0.0 is the first Forever release** (slice 5). The in-game pass
+had no Druid available, so it was handed to players and testers, and the release notes say so:
+**no Wildly build has been verified in game yet.** The unmeasured items below and the in-game
+checklist under Validation are the open work. Record what is measured in `docs/`, and delete this
+section once a pass has been done.
 
 `H.NOT_YET_PORTED` in `tests/harness.lua` is empty. It stays, with the check in `test_bridge`, until
 this section is deleted. Update this section as slices land, and delete it when the port is done.
@@ -354,8 +356,16 @@ a second time (see Priestly's `AGENTS.md`, Packaging, for the history).
    players.
 2. The release type comes from the **tag name**: `alpha` → Alpha, `beta` → Beta, else Release.
    CurseForge offers only Release to most users; tag `beta` only to hold a build back.
-3. **Check the published zip carries LibGroupBuffs**: download it and run
-   `lua tests/libfiles.lua <unzipped>/Wildly/Libs/LibGroupBuffs-1.0 ship`. A zip without it is an
-   addon that does not start.
+3. **Check the published zip carries LibGroupBuffs, and nothing else.** CI proves the BigWigs
+   packager embeds it, but releases are built by CurseForge's own packager from the tag webhook,
+   which CI cannot run, and **the two do not behave the same**. Download the published file, run
+   `lua tests/libfiles.lua <unzipped>/Wildly/Libs/LibGroupBuffs-1.0 ship`, then count the files in
+   that folder: seven - the six that command lists (the XML and the five files it loads) plus
+   `LICENSE`. A zip without them is an addon that does not start for everyone who updates.
+
+   **CurseForge does not apply an external's own `.pkgmeta`.** Measured on Priestly's v2.0.6
+   download: the library's `tests/`, `AGENTS.md`, `CLAUDE.md` and `README.md` all shipped, 46 files
+   instead of 7. The entries under `Libs/LibGroupBuffs-1.0/` in *this* `.pkgmeta` are the guarantee,
+   and `tests/test_manifest.lua` mirrors them from the library's own list.
 4. Keep `@project-version@` in the TOC; `Tools/deploy.ps1` rewrites it to `dev` in the deployed
    copy only.
