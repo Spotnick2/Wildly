@@ -57,8 +57,14 @@ local DEFAULTS = {
 -- this addon shares through the library. In the SOURCE, because it is the one
 -- thing that survives a restart here. Bump MEASURED_ON_BUILD after
 -- re-measuring (AGENTS.md); the library warns at every real login until then.
-local MEASURED_ON_BUILD = "69913"
-local SV_BROKEN_ON_BUILD = "69913"
+--
+-- 69977 (installed: .build.info, wow_classic_beta 1.60.1.69977). Its API dump
+-- and 69913's are identical sets - documented functions, events, enums and
+-- structures, widget methods, namespace functions - and the SavedVariables
+-- bug survives both (PORTING-TBC-TO-FOREVER.md section 0). The config-seam
+-- test pins these literally, so a bump here alone fails it.
+local MEASURED_ON_BUILD = "69977"
+local SV_BROKEN_ON_BUILD = "69977"
 
 -- config-owner: begin
 -- The two saved tables, created on first use. WildlyDB holds the settings

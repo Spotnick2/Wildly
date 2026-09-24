@@ -8,6 +8,11 @@
   Nothing should look different to you. If Wildly ever says in chat that it *cannot start*,
   reinstalling Wildly still fixes it.
 
+### Fixed
+- **No more "tested on another game build" notice at every login** on the current client
+  (1.60.1.69977), and no false "your saved settings came back" after returning from character
+  select. Wildly had been checked against the previous build number.
+
 ## v1.0.0 - 2026-09-24
 
 **Wildly now runs on World of Warcraft: Forever.** This is the first release for the Forever client

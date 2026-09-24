@@ -38,7 +38,7 @@ function WoW.reset()
     WoW.time        = 10000
     WoW.inCombat    = false
     WoW.secret      = false      -- C_Secrets.ShouldAurasBeSecret()
-    WoW.build       = "69913"
+    WoW.build       = "69977"    -- Wildly: the installed build (library: 69913)
     WoW.locale      = "enUS"
     WoW.units       = {}         -- [unit] = { name, guid, class, connected, dead, level }
     WoW.auras       = {}         -- [unit] = { auraData, ... }
@@ -477,7 +477,8 @@ NUM_BAG_SLOTS = 4                -- measured on this client
 
 function GetTime() return WoW.time end
 function GetLocale() return WoW.locale end
-function GetBuildInfo() return "1.60.1", WoW.build, "Sep 17 2026", 16001 end
+-- Wildly: 69977's date (library: Sep 17 2026, for 69913).
+function GetBuildInfo() return "1.60.1", WoW.build, "Sep 22 2026", 16001 end
 function InCombatLockdown() return WoW.inCombat end
 -- NOT defined on purpose: MouseIsOver does not exist on this client. The stub
 -- must model the client's absences, not just its presences - defining it here
