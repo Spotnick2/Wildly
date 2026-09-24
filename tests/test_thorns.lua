@@ -27,7 +27,12 @@ local function setup(mode)
     if mode then WildlyDB.thornsMode = mode end
     H.TeachSpells({ "MARK_SINGLE", "THORNS" })
     T.RefreshSpellData()
+    T.ForgetTanks()
 end
+
+-- Roles here are set directly on the stub, which fires no event, so the
+-- group's tank set is forgotten by hand - what a roster or role event does.
+local function rolesChanged() T.ForgetTanks() end
 
 local function units(list)
     local out = {}
@@ -47,7 +52,8 @@ local function party()
         { unit = "player", name = "Karuzo Elegia" },
         { unit = "party1", name = "Sten Thornbeard" },
         { unit = "party2", name = "Mirel Dawnsong" },
-        { unit = "partypet2", name = "Water Elemental" },
+        -- The engine tags a pet with a PET class; that is how Thorns knows.
+        { unit = "partypet2", name = "Water Elemental", class = "PET_MAGE" },
     }
 end
 
@@ -73,7 +79,7 @@ local function raid()
         { unit = "raid2", name = "Karuzo Stone" },
         { unit = "raid3", name = "Karuzo Elegia" },
         { unit = "raid4", name = "Mirel Dawnsong" },
-        { unit = "raidpet4", name = "Water Elemental" },
+        { unit = "raidpet4", name = "Water Elemental", class = "PET_MAGE" },
     }
 end
 
@@ -105,17 +111,25 @@ setup("default")
 members = party()
 H.eq(units(T.MembersFor(THORNS, members)), "party1", "default in a group: the tanks")
 
+-- "disabled" never reaches the filter: the row is dropped before it, by
+-- Wildly_IsBuffEnabled, the one place that rule lives.
 setup("disabled")
 members = party()
-H.eq(#T.MembersFor(THORNS, members), 0, "disabled: nobody")
+local defs = {}
+for _, d in ipairs(T.ActiveDefs({}, {})) do defs[#defs + 1] = d.id end
+H.eq(table.concat(defs, ","), "mark", "disabled: no Thorns row at all")
 
 -- A party where nobody set a role - likely on a client with no LFG, which is
--- not yet measured - has no tanks, so default and tanks both cover nobody and
--- the row disappears.
+-- not yet measured. "tanks" is strict and covers nobody; "default" falls back
+-- to you rather than losing the row.
 setup("default")
 members = party()
 WoW.units.party1.role = nil
-H.eq(#T.MembersFor(THORNS, members), 0, "no roles set: no tanks, no Thorns row")
+rolesChanged()
+H.eq(units(T.MembersFor(THORNS, members)), "player", "no roles set: default covers you")
+H.eq(T.EffectiveMode(), "self", "because the group has no tank")
+WildlyDB.thornsMode = "tanks"
+H.eq(#T.MembersFor(THORNS, members), 0, "while 'tanks' stays strict: nobody, no row")
 
 ------------------------------------------------------------
 -- Solo
@@ -123,7 +137,7 @@ H.eq(#T.MembersFor(THORNS, members), 0, "no roles set: no tanks, no Thorns row")
 
 setup("default")
 WoW.groupMembers = 0
-local solo = { { unit = "player", name = "Karuzo Elegia" }, { unit = "pet", name = "Treant" } }
+local solo = { { unit = "player", name = "Karuzo Elegia" }, { unit = "pet", name = "Treant", class = "PET" } }
 H.eq(units(T.MembersFor(THORNS, solo)), "player", "default alone: yourself")
 WildlyDB.thornsMode = "tanks"
 H.eq(#T.MembersFor(THORNS, solo), 0, "tanks alone: nobody, you have no tank role")
@@ -146,20 +160,50 @@ H.eq(units(T.MembersFor(THORNS, members)), "raid2",
 
 setup("default")
 members = raid()
-H.eq(units(T.MembersFor(THORNS, members)), "raid2", "default in a raid: the main tank")
+H.eq(units(T.MembersFor(THORNS, members)), "raid2",
+    "default in a raid: the main tank - and not you as well, though you are no tank")
+
+-- Decided over the whole group, not per subgroup: a subgroup without the
+-- tank does not fall back to you when the raid has one.
+local otherGroup = { { unit = "raid3", name = "Karuzo Elegia" }, { unit = "raid4", name = "Mirel Dawnsong" } }
+H.eq(#T.MembersFor(THORNS, otherGroup), 0, "your subgroup, which lacks the tank, gets no Thorns row")
 
 -- A role set on a raider counts too, alongside the main tank.
 WoW.units.raid4.role = "TANK"
+rolesChanged()
 H.eq(units(T.MembersFor(THORNS, members)), "raid2,raid4", "and anyone with the tank role")
+
+-- A raid with no main tank and no roles falls back to you, like a party.
+setup("default")
+members = raid()
+WoW.raidRoster[2].role = nil
+rolesChanged()
+H.eq(units(T.MembersFor(THORNS, members)), "raid3", "a raid without tanks: default covers you")
 
 setup("everyone")
 members = raid()
 H.eq(units(T.MembersFor(THORNS, members)), "raid1,raid2,raid3,raid4", "everyone: all raiders, no pet")
 
--- A MAINTANK entry means nothing outside a raid: party tokens have no roster index.
-H.eq(T.IsTank("party1"), false, "a party unit is never matched against the raid roster")
-H.eq(T.IsPet("raidpet4") and T.IsPet("partypet2") and T.IsPet("pet"), true, "pet tokens are pets")
-H.eq(T.IsPet("raid4") or T.IsPet("player") or T.IsPet("party1"), false, "players are not")
+-- The raid roster's MAINTANK belongs to "raid"..index, and only in a raid.
+-- Here roster entry 1 is the main tank: a party unit numbered 1, or raid1
+-- outside a raid, must not pick that up.
+setup("tanks")
+party()
+WoW.units.party1.role = nil
+WoW.raidRoster = { { name = "Sten", subgroup = 1, role = "MAINTANK" } }
+WoW.SetUnit("raid1", { name = "Sten Thornbeard", guid = "P1" })
+rolesChanged()
+H.eq(T.IsTank("party1"), false, "party1 is never matched against raid roster entry 1")
+H.eq(T.IsTank("raid1"), false, "and neither is raid1 while not in a raid")
+WoW.inRaid = true
+rolesChanged()
+H.eq(T.IsTank("raid1"), true, "in a raid, raid1 is roster entry 1's main tank")
+
+-- Pets by the engine's tag, not their unit tokens.
+H.eq(T.IsPet({ unit = "raidpet4", class = "PET_MAGE" }), true, "a PET_ class is a pet")
+H.eq(T.IsPet({ unit = "pet", class = "PET" }), true, "so is a plain PET")
+H.eq(T.IsPet({ unit = "raid4", class = "MAGE" }), false, "a player class is not")
+H.eq(T.IsPet({ unit = "raid4" }), false, "nor is a member with no class reported")
 
 ------------------------------------------------------------
 -- The window follows the filtered list
@@ -210,5 +254,50 @@ H.eq(drawn(), "1:mark,99:mark", "a tankless group gets no Thorns row, and keeps 
 WildlyDB.thornsMode = "everyone"
 T.UpdateUI()
 H.eq(drawn(), "1:mark,1:thorns,99:mark", "switching to everyone brings the Thorns row back")
+
+------------------------------------------------------------
+-- A role change reaches the window
+------------------------------------------------------------
+
+setup("tanks")
+party()
+WoW.units.party1.role = nil
+WoW.dispatch("PLAYER_LOGIN")
+WoW.flushTimers()
+T.UpdateUI()
+H.eq(drawn(), "1:mark,99:mark", "no tank yet: no Thorns row")
+WoW.units.party1.role = "TANK"            -- the warrior sets the tank role
+for _, event in ipairs({ "PLAYER_ROLES_ASSIGNED", "ROLE_CHANGED_INFORM" }) do
+    WoW.dispatch(event)
+    WoW.flushTimers()
+    WoW.flushTimers()
+    H.eq(drawn(), "1:mark,1:thorns,99:mark", event .. " rebuilds with the new tank")
+    WoW.units.party1.role = nil
+    WoW.dispatch(event)
+    WoW.flushTimers()
+    WoW.flushTimers()
+    H.eq(drawn(), "1:mark,99:mark", event .. " also drops a tank who unsets the role")
+    WoW.units.party1.role = "TANK"
+end
+
+------------------------------------------------------------
+-- A window that closed itself for want of rows comes back from the panel
+------------------------------------------------------------
+
+setup("tanks")
+party()
+WoW.units.party1.role = nil
+WoW.units.partypet2 = nil
+WildlyDB.trackMark = false                  -- only Thorns, and nobody to cover
+WoW.dispatch("PLAYER_LOGIN")
+WoW.flushTimers()
+WoW.flushTimers()
+H.check(not T.ui:IsVisible(), "with no rows the window closes itself")
+H.eq(WildlyDB.visible, true, "which is not the player closing it")
+Wildly_SetConfig("thornsMode", "everyone")  -- what the radio does, then:
+Wildly_ForceRebuild()
+WoW.flushTimers()
+H.check(T.ui:IsVisible(), "picking a mode that gives it rows brings it back")
+H.eq(drawn(), "1:thorns", "with the Thorns row")
 
 H.done("test_thorns")

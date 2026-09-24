@@ -94,47 +94,74 @@ local MARK = DEFS[1]
 --     raiders can share one. The main-tank role comes from GetRaidRosterInfo
 --     by index, and belongs to the unit "raid"..index.
 
--- Pets carry pet unit tokens (pet, partypetN, raidpetN), which is how the
--- engine names them; Thorns is for players.
-local function IsPet(unit)
-    return unit == "pet" or unit:find("pet%d+$") ~= nil
+-- The engine tags every pet it gathers with a class of "PET" or
+-- "PET_<owner's class>" (for its icon); no player class starts that way.
+-- Thorns is for players.
+local function IsPet(member)
+    return type(member.class) == "string" and member.class:find("^PET") ~= nil
 end
 
--- The raid's main tank, by roster index. GetRaidRosterInfo's 10th value is
--- the Retail shape, not yet measured on this client (AGENTS.md).
-local function IsMainTank(unit)
-    local index = tonumber(unit:match("^raid(%d+)$"))
-    if not index or not IsInRaid() then return false end
-    local role = select(10, GetRaidRosterInfo(index))
-    return role == "MAINTANK"
-end
+-- The group's tanks, as a set of unit tokens: anyone whose role is TANK,
+-- and in a raid the MAINTANK, read from GetRaidRosterInfo by index for the
+-- unit "raid"..index. Built once and reused until the roster or a role
+-- changes (ForgetTanks), because the engine asks per group per rebuild.
+-- GetRaidRosterInfo's 10th value is the Retail shape, not yet measured here.
+local g_Tanks
 
-local function IsTank(unit)
-    if UnitGroupRolesAssigned(unit) == "TANK" then return true end
-    return IsMainTank(unit)
-end
+local function ForgetTanks() g_Tanks = nil end
 
-local function IsSelf(unit)
-    return UnitIsUnit(unit, "player") and true or false
-end
+local PARTY_UNITS = { "player", "party1", "party2", "party3", "party4" }
 
-local function ThornsMembers(members)
-    local mode = Wildly_GetThornsMode and Wildly_GetThornsMode() or "default"
-    if mode == "disabled" then return {} end
-    if mode == "default" then
-        mode = (GetNumGroupMembers() > 0) and "tanks" or "self"
+local function Tanks()
+    if g_Tanks then return g_Tanks end
+    local tanks = {}
+    if IsInRaid() then
+        for i = 1, GetNumGroupMembers() do
+            local unit = "raid" .. i
+            if UnitGroupRolesAssigned(unit) == "TANK"
+                or select(10, GetRaidRosterInfo(i)) == "MAINTANK"
+            then
+                tanks[unit] = true
+            end
+        end
+    else
+        for _, unit in ipairs(PARTY_UNITS) do
+            if UnitExists(unit) and UnitGroupRolesAssigned(unit) == "TANK" then
+                tanks[unit] = true
+            end
+        end
     end
+    g_Tanks = tanks
+    return tanks
+end
+
+local function IsTank(unit) return Tanks()[unit] == true end
+
+-- "default" is tanks when the group has any, and otherwise yourself. Roles
+-- may well never be set on a client without LFG (unmeasured), and a party
+-- losing its Thorns row for that would be worse than Thorns on you. Decided
+-- over the whole group, not per subgroup: a raid with a main tank covers the
+-- tank, not also you in every subgroup that has none.
+local function EffectiveMode()
+    local mode = Wildly_GetThornsMode()
+    if mode ~= "default" then return mode end
+    if GetNumGroupMembers() > 0 and next(Tanks()) ~= nil then return "tanks" end
+    return "self"
+end
+
+-- "disabled" never reaches here: Wildly_IsBuffEnabled drops the whole row.
+local function ThornsMembers(members)
+    local mode = EffectiveMode()
     local out = {}
     for _, m in ipairs(members) do
-        local unit = m.unit
-        if not IsPet(unit) then
+        if not IsPet(m) then
             local include
             if mode == "everyone" then
                 include = true
             elseif mode == "self" then
-                include = IsSelf(unit)
+                include = UnitIsUnit(m.unit, "player")
             else -- "tanks"
-                include = IsTank(unit)
+                include = IsTank(m.unit)
             end
             if include then out[#out + 1] = m end
         end
@@ -344,9 +371,13 @@ end
 -- rebuilding a closed one would undo the player's close for a settings change.
 -- In combat the rows cannot change; the library rebuilds a visible window at
 -- combat end.
+--
+-- A window that closed ITSELF because a setting left it no rows - Thorns on
+-- tanks in a tankless group with Mark untracked, say - is not a close the
+-- player asked for, so the next setting that could give it rows reopens it.
 function Wildly_ForceRebuild()
-    if InCombatLockdown() or not ui:IsVisible() then return end
-    ui:Open(0.1)
+    if InCombatLockdown() then return end
+    if ui:IsVisible() or WantsOpen() then ui:Open(0.1) end
 end
 
 -- Called when the solo checkbox is toggled in config. Not refused in combat:
@@ -385,7 +416,11 @@ Wildly.RegisterEvents(evtFrame,
     "ACTIVE_TALENT_GROUP_CHANGED",
     "PLAYER_REGEN_ENABLED",
     "BAG_UPDATE",
-    "SPELLS_CHANGED")
+    "SPELLS_CHANGED",
+    -- Who is a tank decides the Thorns row. Both declared in the 69977 dump;
+    -- which one this client actually fires on a role change is unmeasured.
+    "PLAYER_ROLES_ASSIGNED",
+    "ROLE_CHANGED_INFORM")
 
 evtFrame:SetScript("OnEvent", function(self, event, arg1, arg2)
     if event == "PLAYER_LOGIN" then
@@ -395,6 +430,7 @@ evtFrame:SetScript("OnEvent", function(self, event, arg1, arg2)
         if not g_IsDruid then return end
 
         Wildly_EnsureDefaults()
+        ForgetTanks()
         if WildlyDB.visible == nil then SetConfig("visible", true) end
 
         -- Resolve localized spell names and what this druid knows before
@@ -430,7 +466,17 @@ evtFrame:SetScript("OnEvent", function(self, event, arg1, arg2)
         -- Pet summoned or dismissed: rebuild to add/remove pet rows
         ui:ScheduleRefresh()
 
+    elseif event == "PLAYER_ROLES_ASSIGNED" or event == "ROLE_CHANGED_INFORM" then
+        ForgetTanks()
+        if ui:IsVisible() then
+            ui:ScheduleRefresh()
+        elseif WantsOpen() then
+            ui:Open(0.3)   -- a tank appearing can give a closed-for-want-of-rows window its row
+        end
+
     elseif event == "RAID_ROSTER_UPDATE" or event == "GROUP_ROSTER_UPDATE" then
+        -- Unit tokens are reassigned, and the main tank may have changed.
+        ForgetTanks()
         engine:PruneCache()
         local n = GetNumGroupMembers()
         -- Joining a group is the one case that reopens a window the user
@@ -595,6 +641,8 @@ Wildly._test = {
     MembersFor       = function(def, members) return engine:MembersFor(def, members) end,
     IsTank           = IsTank,
     IsPet            = IsPet,
+    ForgetTanks      = ForgetTanks,
+    EffectiveMode    = function() return EffectiveMode() end,
     AuraEventIsRelevant = AuraEventIsRelevant,
     GetSpecIcon      = GetSpecIcon,
     GetGiftRank      = GetGiftRank,

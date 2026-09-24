@@ -167,15 +167,18 @@ clicks, so they cannot disagree. An empty list means no row. Modes, from `Wildly
 
 | Mode | Members |
 |---|---|
-| `default` | tanks when grouped, yourself when solo |
+| `default` | the group's tanks; yourself if it has none (or you are solo) |
 | `tanks` | tanks only |
 | `self` | yourself only |
 | `everyone` | every player (never pets) |
 | `disabled` | no row: `isBuffEnabled("thorns")` is false |
 
 `MembersFor` in `Wildly.lua` passes every other buff's list through untouched. A tank is
-`UnitGroupRolesAssigned(unit) == "TANK"` or the raid's `MAINTANK`; pets are recognised by their
-unit token (`pet`, `partypetN`, `raidpetN`, the engine's own names) and never covered.
+`UnitGroupRolesAssigned(unit) == "TANK"` or the raid's `MAINTANK`, collected once into a set of
+unit tokens and forgotten on roster and role events (`PLAYER_ROLES_ASSIGNED`,
+`ROLE_CHANGED_INFORM`). Whether the group "has tanks" is decided over the whole group, not per
+subgroup. Pets are recognised by the engine's own tag - a member `class` of `PET` or `PET_<class>` -
+and never covered.
 
 Two traps the TBC code fell into, which the filter must not repeat:
 
@@ -194,7 +197,8 @@ Not yet measured, and needed before this ships:
   0-to-n roster change within `ROSTER_SETTLE_SECONDS` (5) of login as the roster arriving, not a
   join, so it cannot undo a close; the number is a guess until measured.
 - Whether `UnitGroupRolesAssigned` returns anything but `"NONE"` on this client (there is no LFG).
-  If not, a party has no tanks and `default` shows no Thorns row there.
+  If not, a party has no tanks and `default` covers only you there. Also which of
+  `PLAYER_ROLES_ASSIGNED` / `ROLE_CHANGED_INFORM` fires on a role change.
 - `GetRaidRosterInfo`'s return shape. It is only in the dump's undocumented globals; the stub
   models the Retail tuple (role 10th). `UnitIsUnit` and `UnitGroupRolesAssigned` are declared in
   the dump.
