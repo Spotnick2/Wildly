@@ -356,8 +356,16 @@ a second time (see Priestly's `AGENTS.md`, Packaging, for the history).
    players.
 2. The release type comes from the **tag name**: `alpha` → Alpha, `beta` → Beta, else Release.
    CurseForge offers only Release to most users; tag `beta` only to hold a build back.
-3. **Check the published zip carries LibGroupBuffs**: download it and run
-   `lua tests/libfiles.lua <unzipped>/Wildly/Libs/LibGroupBuffs-1.0 ship`. A zip without it is an
-   addon that does not start.
+3. **Check the published zip carries LibGroupBuffs, and nothing else.** CI proves the BigWigs
+   packager embeds it, but releases are built by CurseForge's own packager from the tag webhook,
+   which CI cannot run, and **the two do not behave the same**. Download the published file, run
+   `lua tests/libfiles.lua <unzipped>/Wildly/Libs/LibGroupBuffs-1.0 ship`, then count the files in
+   that folder: seven - the six that command lists (the XML and the five files it loads) plus
+   `LICENSE`. A zip without them is an addon that does not start for everyone who updates.
+
+   **CurseForge does not apply an external's own `.pkgmeta`.** Measured on Priestly's v2.0.6
+   download: the library's `tests/`, `AGENTS.md`, `CLAUDE.md` and `README.md` all shipped, 46 files
+   instead of 7. The entries under `Libs/LibGroupBuffs-1.0/` in *this* `.pkgmeta` are the guarantee,
+   and `tests/test_manifest.lua` mirrors them from the library's own list.
 4. Keep `@project-version@` in the TOC; `Tools/deploy.ps1` rewrites it to `dev` in the deployed
    copy only.

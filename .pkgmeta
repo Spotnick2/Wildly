@@ -26,3 +26,18 @@ ignore:
   - README.md
   - CHANGELOG.md
   - LICENSE
+  # The library's own .pkgmeta ignores its tests and notes, and the BigWigs
+  # packager honours that - which is why CI's zip check passes. CurseForge's
+  # packager, which builds the release from the tag webhook, does NOT: Priestly
+  # v2.0.6's download carried 46 files under Libs/LibGroupBuffs-1.0 instead of
+  # 7, including 824 KB of test fixtures (Priestly #53, measured in the
+  # published zip). So the paths are named from HERE, where that packager does
+  # apply the list.
+  #
+  # Only the library's NON-DOT ignores need repeating: both packagers prune
+  # dot-paths themselves. tests/test_manifest.lua mirrors this list from the
+  # library's own, so a new dev file there cannot quietly ship.
+  - Libs/LibGroupBuffs-1.0/tests
+  - Libs/LibGroupBuffs-1.0/AGENTS.md
+  - Libs/LibGroupBuffs-1.0/CLAUDE.md
+  - Libs/LibGroupBuffs-1.0/README.md
