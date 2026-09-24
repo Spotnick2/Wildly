@@ -65,13 +65,37 @@ local btn = T.footerButton(17021)
 H.check(btn ~= nil, "the window shows the Wild Berries button")
 H.eq(btn and btn.countTxt._text, 40, "with the count from the bags")
 
--- Learning rank 2 swaps the reagent on the next rebuild.
+-- Learning rank 2 swaps the reagent once the spells are re-read, which is
+-- what SPELLS_CHANGED runs (test_visibility drives that event).
 WoW.Know(H.SPELL.MARK_GROUP, H.NAME.MARK_GROUP, "Rank 2")
-WoW.dispatch("SPELLS_CHANGED")
-WoW.flushTimers()
 T.UpdateUI()
-H.check(T.footerButton(17026) ~= nil, "after learning rank 2 the footer shows Wild Thornroot")
+H.check(T.footerButton(17021) ~= nil, "a rebuild alone keeps the rank it last read")
+T.RefreshSpellData()
+T.UpdateUI()
+H.check(T.footerButton(17026) ~= nil, "after re-reading spells the footer shows Wild Thornroot")
 H.eq(T.footerButton(17021), nil, "and no longer Wild Berries")
+
+-- Untracking Mark hides its reagent: no row, nothing to count.
+Wildly_SetConfig("trackMark", false)
+H.eq(#T.FooterItems(), 0, "with Mark untracked there is no reagent")
+Wildly_SetConfig("trackMark", true)
+H.eq(#T.FooterItems(), 1, "and it comes back with the row")
+
+------------------------------------------------------------
+-- The spellbook is read when spells change, not on every rebuild
+--
+-- The window asks for the reagent and the icon on each rebuild - in a raid,
+-- each aura burst - and working out the rank walks the whole spellbook.
+------------------------------------------------------------
+
+local walks = 0
+local realRank = Wildly.API.GetSpellRank
+Wildly.API.GetSpellRank = function(...) walks = walks + 1 return realRank(...) end
+for _ = 1, 5 do T.UpdateUI() end
+H.eq(walks, 0, "five rebuilds read the spellbook no times")
+T.RefreshSpellData()
+H.eq(walks, 1, "re-reading spells reads it once")
+Wildly.API.GetSpellRank = realRank
 
 ------------------------------------------------------------
 -- The spec icon, from spells only one tree teaches
@@ -82,6 +106,7 @@ H.eq(T.GetSpecIcon(), T.DRUID_ICON, "no spec spell: the druid class icon")
 for _, spec in ipairs(T.SPEC_ICON_SPELLS) do
     setup({ "MARK_SINGLE" })
     WoW.Know(spec.id, "Spec " .. spec.id)
+    T.RefreshSpellData()
     H.eq(T.GetSpecIcon(), spec.icon, "spell " .. spec.id .. " picks its tree's icon")
 end
 local ids = {}

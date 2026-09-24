@@ -43,6 +43,10 @@ local function settle()
     WoW.flushTimers()   -- a deferred rebuild can queue another
 end
 
+-- Past the few seconds after login in which a roster arriving is the client
+-- catching up rather than the player joining.
+local function afterLogin() WoW.time = WoW.time + 30 end
+
 ------------------------------------------------------------
 -- Login opens the window for a druid in a group
 ------------------------------------------------------------
@@ -79,6 +83,24 @@ settle()
 H.check(not shown(), "nor does a roster change or a ready check open one")
 H.check(not T.isDruid(), "Wildly knows it is on another class")
 
+-- Typed commands too: one line, and no saved table, no frames.
+WildlyDB = nil
+local framesBefore = T.mainFrame()
+for _, cmd in ipairs({ "", "show", "reset", "hide", "pos", "config" }) do
+    before = #WoW.messages
+    SlashCmdList["WILDLY"](cmd)
+    H.eq(#WoW.messages, before + 1, "/wildly " .. cmd .. " answers once on a mage")
+end
+H.check(WoW.messages[#WoW.messages]:find("Druid", 1, true) ~= nil,
+    "saying what Wildly is for: " .. WoW.messages[#WoW.messages])
+settle()
+H.eq(WildlyDB, nil, "and creates no saved table")
+H.eq(T.mainFrame(), framesBefore, "and builds no window")
+H.check(not shown(), "and shows nothing")
+Wildly_OnSoloToggle(true)
+settle()
+H.check(not shown(), "the solo hook does nothing on a mage either")
+
 ------------------------------------------------------------
 -- A deliberate close survives a reload
 ------------------------------------------------------------
@@ -102,6 +124,7 @@ T.CloseUI(true)                     -- /wildly hide
 H.check(not shown(), "closed by hand")
 H.eq(WildlyDB.visible, false, "which is remembered")
 
+afterLogin()
 WoW.groupMembers = 3
 WoW.SetUnit("party2", { name = "Sten Thornbeard", guid = "P2" })
 WoW.dispatch("GROUP_ROSTER_UPDATE")
@@ -132,6 +155,71 @@ WoW.groupMembers = 0
 WoW.dispatch("GROUP_ROSTER_UPDATE")
 settle()
 H.check(not shown(), "leaving the group closes it again, with solo display off")
+
+------------------------------------------------------------
+-- The roster arriving just after login is not a join
+--
+-- Inside a group GetNumGroupMembers() can still read 0 at PLAYER_LOGIN. The
+-- first roster update then looks like 0 -> n, and treating that as a join
+-- would undo a close on every login.
+------------------------------------------------------------
+
+setup(0)
+WildlyDB.visible = false
+WoW.dispatch("PLAYER_LOGIN")
+settle()
+WoW.groupMembers = 5
+WoW.dispatch("GROUP_ROSTER_UPDATE")
+settle()
+H.check(not shown(), "a roster that arrives just after login does not undo a close")
+H.eq(WildlyDB.visible, false, "and the preference stands")
+
+afterLogin()
+WoW.groupMembers = 0
+WoW.dispatch("GROUP_ROSTER_UPDATE")
+WoW.groupMembers = 2
+WoW.dispatch("GROUP_ROSTER_UPDATE")
+settle()
+H.check(shown(), "a real join later on still reopens it")
+
+------------------------------------------------------------
+-- A settings change never reopens a closed window
+------------------------------------------------------------
+
+setup(2)
+WoW.dispatch("PLAYER_LOGIN")
+settle()
+T.CloseUI(true)
+Wildly_ForceRebuild()
+settle()
+H.check(not shown(), "a rebuild asked for by the options panel leaves a closed window closed")
+H.eq(WildlyDB.visible, false, "and the close is still remembered")
+SlashCmdList["WILDLY"]("show")
+settle()
+Wildly_ForceRebuild()
+settle()
+H.check(shown(), "an open window is rebuilt and stays open")
+
+------------------------------------------------------------
+-- Spells the client reports only after login still open the window
+------------------------------------------------------------
+
+setup(2)
+WoW.knownSpells = {}                  -- nothing known yet at login
+WoW.spellbook = {}
+WoW.dispatch("PLAYER_LOGIN")
+settle()
+H.check(not shown(), "with nothing to cast there is no window")
+H.eq(WildlyDB.visible, true, "which is not a close: the preference is untouched")
+WoW.Know(H.SPELL.MARK_SINGLE, H.NAME.MARK_SINGLE)
+WoW.dispatch("SPELLS_CHANGED")
+settle()
+H.check(shown(), "the spellbook arriving opens the window it would have opened at login")
+
+T.CloseUI(true)
+WoW.dispatch("SPELLS_CHANGED")
+settle()
+H.check(not shown(), "but spells changing never overrides a close")
 
 ------------------------------------------------------------
 -- A show asked for during combat happens when combat ends
@@ -166,6 +254,17 @@ Wildly_SetConfig("showSolo", false)
 Wildly_OnSoloToggle(false)
 settle()
 H.check(not shown(), "and unticking it alone closes it")
+
+-- Mid-fight, the tick is honoured when the fight ends rather than lost.
+WoW.inCombat = true
+Wildly_SetConfig("showSolo", true)
+Wildly_OnSoloToggle(true)
+settle()
+H.check(not shown(), "nothing can be built during the fight")
+WoW.inCombat = false
+WoW.dispatch("PLAYER_REGEN_ENABLED")
+settle()
+H.check(shown(), "and the window appears when it ends")
 
 ------------------------------------------------------------
 -- Toggling

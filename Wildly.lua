@@ -76,6 +76,9 @@ local DEFS = {
     },
 }
 
+-- The Mark of the Wild def, which the reagent and the help text ask about.
+local MARK = DEFS[1]
+
 -- ─── The buff engine (LibGroupBuffs-1.0's Engine.lua) ─────────────────────
 --
 -- Aura reads and the combat-secrecy cache, durations, the roster, group stats,
@@ -96,10 +99,18 @@ local ST_HAS     = Wildly.Engine.STATES.HAS
 local ST_MISSING = Wildly.Engine.STATES.MISSING
 local ST_UNKNOWN = Wildly.Engine.STATES.UNKNOWN
 
+-- What RefreshSpellData derives from the spellbook, kept until it next runs:
+-- the window asks for the icon and the reagent on every rebuild, and in a
+-- raid that is every aura burst, while both only change when spells do.
+local g_GiftRank, g_SpecIcon
+
+local RefreshDerived   -- defined below, with the spec icon and the reagent
+
 -- Resolve localized names and what this druid knows. Rerun on SPELLS_CHANGED
 -- and talent changes: what a druid knows changes as they level.
 local function RefreshSpellData()
     engine:RefreshSpells()
+    RefreshDerived()
 end
 
 local function ClickSpells(def) return engine:ClickSpells(def) end
@@ -112,6 +123,21 @@ end
 -- ─── State ───────────────────────────────────────────────────────────────────
 local g_IsDruid = false
 local g_LastGroupSize = 0
+local g_LoginAt = 0
+
+-- The roster can arrive a moment after PLAYER_LOGIN: GetNumGroupMembers() may
+-- still read 0 at login inside a group. A 0-to-n change that soon is the
+-- client catching up, not the player joining, and must not override a close.
+-- Not measured on this client (AGENTS.md, in-game list); five seconds is a
+-- guess on the safe side - a real invite that soon after login is rare.
+local ROSTER_SETTLE_SECONDS = 5
+
+-- Would the window open by itself right now? In a group, or solo mode - and
+-- never over a deliberate close.
+local function WantsOpen()
+    if not WildlyDB or WildlyDB.visible == false then return false end
+    return GetNumGroupMembers() > 0 or Wildly_ShowSolo()
+end
 
 -- Settings writes go through WildlyConfig's single write path. Guarded: if
 -- WildlyConfig failed to load, a bare call would throw from a drag or a
@@ -131,12 +157,14 @@ local SPEC_ICON_SPELLS = {
     { id = 17007, icon = "Interface\\Icons\\Spell_Nature_UnyeildingStamina" }, -- Leader of the Pack
 }
 
-local function GetSpecIcon()
+local function FindSpecIcon()
     for _, s in ipairs(SPEC_ICON_SPELLS) do
         if KnowsSpell(s.id) then return s.icon end
     end
     return DRUID_ICON
 end
+
+local function GetSpecIcon() return g_SpecIcon or DRUID_ICON end
 
 -- ─── Colours ─────────────────────────────────────────────────────────────────
 -- Wildly's orange, #ff7c0a, where Priestly has its blue. Everything else is
@@ -167,25 +195,28 @@ local GIFT_REAGENTS = {
     [2] = 17026,   -- Wild Thornroot
 }
 
-local function MarkDef()
-    for _, d in ipairs(DEFS) do
-        if d.id == "mark" then return d end
-    end
+-- Highest rank of Gift of the Wild known, 0 if none. A spellbook walk, so
+-- only RefreshDerived calls it.
+local function FindGiftRank()
+    if not MARK.hasGroup then return 0 end
+    return API.GetSpellRank(MARK.grp)
 end
 
--- Highest rank of Gift of the Wild known, 0 if none.
-local function GetGiftRank()
-    local mark = MarkDef()
-    if not mark.hasGroup then return 0 end
-    return API.GetSpellRank(mark.grp)
+local function GetGiftRank() return g_GiftRank or 0 end
+
+RefreshDerived = function()
+    g_GiftRank = FindGiftRank()
+    g_SpecIcon = FindSpecIcon()
 end
 
 local function FooterItems()
     local items = {}
+    -- No Mark row, no reason to count its reagent.
+    if Wildly_IsBuffEnabled and not Wildly_IsBuffEnabled("mark") then return items end
     local reagent = GIFT_REAGENTS[GetGiftRank()]
     if reagent then
         items[#items + 1] = {
-            itemID = reagent, icon = ItemIcon(reagent), usedBy = MarkDef().grp,
+            itemID = reagent, icon = ItemIcon(reagent), usedBy = MARK.grp,
             color = function(count)
                 if count >= 50 then return 0.20, 1.00, 0.20 end
                 if count >= 25 then return 1.00, 0.88, 0.10 end
@@ -239,16 +270,21 @@ function Wildly_ScheduleRefresh()
     ui:ScheduleRefresh()
 end
 
--- Force a full rebuild (used when config changes affect layout). In combat the
--- rows cannot change; the library rebuilds a visible window at combat end.
+-- Force a full rebuild (used when config changes affect layout). Only of a
+-- window that is open: ui:Open shows the window and records it as visible, so
+-- rebuilding a closed one would undo the player's close for a settings change.
+-- In combat the rows cannot change; the library rebuilds a visible window at
+-- combat end.
 function Wildly_ForceRebuild()
-    if InCombatLockdown() then return end
+    if InCombatLockdown() or not ui:IsVisible() then return end
     ui:Open(0.1)
 end
 
--- Called when the solo checkbox is toggled in config
+-- Called when the solo checkbox is toggled in config. Not refused in combat:
+-- ui:Open and ui:Close both remember what was asked and carry it out when the
+-- fight ends, so ticking the box mid-fight is honoured rather than lost.
 function Wildly_OnSoloToggle(enabled)
-    if InCombatLockdown() then return end
+    if not g_IsDruid then return end
     if enabled then
         if not ui:IsVisible() and g_IsDruid then
             SetConfig("visible", true)
@@ -293,18 +329,16 @@ evtFrame:SetScript("OnEvent", function(self, event, arg1, arg2)
         if WildlyDB.visible == nil then SetConfig("visible", true) end
 
         -- Resolve localized spell names and what this druid knows before
-        -- anything reads DEFS.
+        -- anything reads DEFS. Init applies the colours and opacity.
         RefreshSpellData()
         ui:Init()
-        Wildly_ApplyAlpha()
 
         -- Auto-open in a group (or solo mode) - unless the window was
         -- deliberately closed, which is a preference that should survive a
         -- reload.
         g_LastGroupSize = GetNumGroupMembers()
-        if WildlyDB.visible ~= false and (g_LastGroupSize > 0 or Wildly_ShowSolo()) then
-            ui:Open(0.6)
-        end
+        g_LoginAt = GetTime()
+        if WantsOpen() then ui:Open(0.6) end
 
         DEFAULT_CHAT_FRAME:AddMessage(
             "|cffff7c0a[Wildly]|r Loaded. Auto-opens when you join a group. " ..
@@ -333,7 +367,8 @@ evtFrame:SetScript("OnEvent", function(self, event, arg1, arg2)
         -- Joining a group is the one case that reopens a window the user
         -- closed: that is the addon's advertised behaviour. Any other roster
         -- churn leaves a deliberate close alone.
-        local joined = (g_LastGroupSize == 0 and n > 0)
+        local settling = (GetTime() - g_LoginAt) < ROSTER_SETTLE_SECONDS
+        local joined = (g_LastGroupSize == 0 and n > 0) and not settling
         g_LastGroupSize = n
         if joined then SetConfig("visible", true) end
         if n > 0 and not ui:IsVisible()
@@ -352,12 +387,17 @@ evtFrame:SetScript("OnEvent", function(self, event, arg1, arg2)
         -- Newly learned spells change which rows exist, how they cast, the
         -- spec icon and the reagent. In combat only the counts can move; the
         -- rebuild follows the fight.
+        -- A window that is not open may have closed itself for want of a
+        -- known spell - the spellbook can arrive after PLAYER_LOGIN - so it
+        -- opens now if it would have opened then.
         RefreshSpellData()
         ui:ApplyAppearance()
         if ui:IsVisible() and not InCombatLockdown() then
             ui:Open(0.3)
         elseif ui:IsVisible() then
             ui:RefreshFooter()
+        elseif WantsOpen() then
+            ui:Open(0.3)
         end
 
     elseif event == "PLAYER_REGEN_ENABLED" then
@@ -377,6 +417,13 @@ SLASH_WILDLY1 = "/wildly"
 SlashCmdList["WILDLY"] = function(msg)
     local cmd = strtrim(msg or ""):lower()
 
+    -- Class-specific: on anyone else there is no window to show and nothing
+    -- to save, so say that once rather than building frames for nothing.
+    if not g_IsDruid then
+        Say("Wildly manages Druid buffs; it does nothing on this character.")
+        return
+    end
+
     if cmd == "help" then
         Say("Commands:")
         DEFAULT_CHAT_FRAME:AddMessage("  |cffffffff/wildly|r            toggle window")
@@ -389,7 +436,7 @@ SlashCmdList["WILDLY"] = function(msg)
         -- Describe the mapping that is actually live: without Gift of the Wild
         -- left-click is single-target.
         Say("Main frame rows:")
-        if MarkDef().hasGroup then
+        if MARK.hasGroup then
             DEFAULT_CHAT_FRAME:AddMessage("  Left-click   Gift of the Wild (Mark row); Thorns on the Thorns row")
             DEFAULT_CHAT_FRAME:AddMessage("  Right-click  single buff on the first person missing it")
         else

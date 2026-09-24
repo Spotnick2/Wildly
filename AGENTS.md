@@ -69,8 +69,8 @@ this section is deleted. Update this section as slices land, and delete it when 
   `Wildly.Settings`, `Wildly.Engine`, `Wildly.UI`, and `Wildly.RegisterEvents`, which reports
   rejected events in chat. No API code lives here.
 - `WildlyConfig.lua` — options panel, defaults, the Thorns mode, exported config helpers.
-- `Wildly.lua` — `DEFS`, the Thorns member filter, the reagent footer items, the spec icon, event
-  handling, slash commands and the test seam. Everything else is LibGroupBuffs:
+- `Wildly.lua` — `DEFS`, the reagent footer items, the spec icon and colours, event handling,
+  slash commands and the test seam (and, from slice 4, the Thorns member filter). Everything else is LibGroupBuffs:
   - `Engine.lua` is the buff logic (aura cache, roster, stats, targeting, click mapping,
     `UNIT_AURA` filtering).
   - `UI.lua` is the window (rows, popover, secure buttons, dragging, ticker, what combat defers).
@@ -118,8 +118,11 @@ Load order from `Wildly.toc`:
 `Wildly.lua` exposes, for the config: `Wildly_ScheduleRefresh`, `Wildly_ForceRebuild` (does
 nothing in combat; the library rebuilds a visible window at combat end), `Wildly_OnSoloToggle`,
 `Wildly_ApplyAlpha`. It decides when the window opens: at login for a Druid in a group (or solo
-mode) unless `visible` is false; on joining a group, overriding a close; never on other roster
-churn or a ready check over a close; nothing at all on another class. Its test seam is
+mode) unless `visible` is false, or later when the spells arrive; on joining a group, overriding a
+close (but not the roster arriving just after login); never on other roster churn, a ready check or
+a settings change over a close; nothing at all on another class, slash commands included (one
+line saying so). The Gift rank and spec icon are read from the spellbook when spells change, never
+per rebuild. Its test seam is
 `Wildly._test`.
 
 `WildlyConfig.lua` exposes: `Wildly_EnsureDefaults`, `Wildly_ShowSolo`, `Wildly_TrackPets`,
@@ -183,6 +186,9 @@ Not yet measured, and needed before this ships:
 - Whether the spec-icon spells resolve (Moonkin Form 24858, Swiftmend 18562, Leader of the Pack
   17007), and whether the spellbook's rank subtext for Gift of the Wild reads `Rank 1` / `Rank 2`,
   which is what picks the reagent (`API.GetSpellRank`).
+- Whether `GetNumGroupMembers()` already counts the group at `PLAYER_LOGIN`. `Wildly.lua` treats a
+  0-to-n roster change within `ROSTER_SETTLE_SECONDS` (5) of login as the roster arriving, not a
+  join, so it cannot undo a close; the number is a guess until measured.
 - Whether `UnitGroupRolesAssigned` returns anything but `"NONE"` on this client (there is no LFG).
   If not, a party has no tanks and `default` shows no Thorns row there.
 - `GetRaidRosterInfo`'s return shape. It is only in the dump's undocumented globals; the stub
