@@ -171,71 +171,52 @@ loaded, err, chat = loadWithout(halfLoaded)
 H.check(not loaded, "a library that failed to load completely is refused too")
 H.check(chat:find("completely", 1, true), "and reported as that, not as missing: " .. chat)
 
--- Each case below is a library that is complete except for ONE piece, and
--- newer than the floor, so that piece is the only reason it can be refused.
--- (A fake with no MINOR at all is refused by the first check whatever else is
--- wrong with it, and proves nothing about the rest.)
-local function shaped(minor, markers, drop)
+-- What the bridge does with each answer.
+--
+-- Which copies are usable is the library's question now: lib.Status walks its
+-- own list of files and says "ok", "incomplete" or "too-old", and the "complete
+-- except one piece" cases are tested there (LibGroupBuffs r12). Wildly's job
+-- is to react - refuse, and say the right thing to the player - and that is
+-- all this file tests.
+local FLOOR = tonumber((H.readFile("WildlyCompat.lua") or ""):match("NEEDS_MINOR = (%d+)"))
+H.check(FLOOR ~= nil, "the bridge declares the oldest library it works against")
+
+local function answering(status, minor)
     local l = { API = { RegisterEventsReported = function() return true end,
                         ClickEdges = function() end },
                 Settings = { New = function() end }, Engine = { New = function() end },
-                UI = { New = function() end } }
-    for k, v in pairs(markers) do l[k] = v end
-    if drop then drop(l) end
+                UI = { New = function() end },
+                Status = status and function() return status, minor end or nil }
     return setmetatable({}, { __call = function() return l, minor end })
 end
-local function markers(n)
-    return { compatMinor = n, settingsMinor = n, engineMinor = n, uiMinor = n }
-end
 
-loaded = loadWithout(shaped(12, markers(12)))
-H.check(loaded, "a complete library newer than the floor is accepted - the baseline for the cases below")
+loaded = loadWithout(answering("ok", FLOOR))
+H.check(loaded, "a library that says it is ok is accepted")
 
-local MISSING_PIECES = {
-    { "Settings",  function(l) l.Settings = nil end },
-    { "Settings.New", function(l) l.Settings.New = nil end },
-    { "Engine",    function(l) l.Engine = nil end },
-    { "Engine.New", function(l) l.Engine.New = nil end },
-    { "UI",        function(l) l.UI = nil end },
-    { "UI.New",    function(l) l.UI.New = nil end },
-    { "API.RegisterEventsReported", function(l) l.API.RegisterEventsReported = nil end },
-    { "API.ClickEdges", function(l) l.API.ClickEdges = nil end },
-    -- A file that threw before its last line: its marker never ran.
-    { "compatMinor", function(l) l.compatMinor = nil end },
-    { "settingsMinor", function(l) l.settingsMinor = nil end },
-    { "engineMinor", function(l) l.engineMinor = nil end },
-    { "uiMinor",   function(l) l.uiMinor = nil end },
-}
-for _, case in ipairs(MISSING_PIECES) do
-    loaded, err, chat = loadWithout(shaped(12, markers(12), case[2]))
-    H.check(not loaded, "a library without " .. case[1] .. " is refused")
-    H.check(chat:find("completely", 1, true), "as one that failed to load completely: " .. chat)
-end
+loaded, err, chat = loadWithout(answering("incomplete", FLOOR))
+H.check(not loaded, "one that says it is incomplete is refused")
+H.check(chat:find("completely", 1, true), "as a failed load: " .. chat)
 
--- Another addon loaded a newer copy first, and one of its files threw
--- partway: LibStub reports that newer MINOR, but that file's marker is still
--- the older copy's, over a half-replaced table. Present is not enough - it has
--- to be the ACTIVE copy's.
-for _, key in ipairs({ "compatMinor", "settingsMinor", "engineMinor", "uiMinor" }) do
-    local m = markers(12)
-    m[key] = 11
-    loaded, err, chat = loadWithout(shaped(12, m))
-    H.check(not loaded, "an older copy's " .. key .. " under a newer MINOR is refused")
-    H.check(chat:find("completely", 1, true), "as a library that failed to load completely: " .. chat)
-end
+-- Complete, just too old. Nothing crashed, so the message must not say it
+-- did, and must name both versions.
+loaded, err, chat = loadWithout(answering("too-old", FLOOR - 1))
+H.check(not loaded, "and one that says it is too old")
+H.check(chat:find("r" .. (FLOOR - 1), 1, true) and chat:find("r" .. FLOOR, 1, true),
+    "naming the version in use and the one needed: " .. chat)
+H.check(not chat:find("completely", 1, true), "without claiming a failed load: " .. chat)
 
--- A complete, self-consistent copy that is simply too old: one MINOR behind
--- what this build needs (NEEDS_MINOR). Behaviour is what separates them - r11
--- lets Wildly colour the popover divider, which r10 would quietly draw in
--- Priestly's blue - and behaviour cannot be feature-detected, so the floor is
--- a version check. Nothing crashed, so the message must not say it did.
-loaded, err, chat = loadWithout(shaped(10, markers(10)))
-H.check(not loaded, "a complete library older than the one this build needs is refused")
-H.check(chat:find("r10", 1, true) and chat:find("r11", 1, true),
-    "the message names the version in use and the one needed: " .. chat)
-H.check(not chat:find("completely", 1, true), "and does not claim a failed load: " .. chat)
-loaded = loadWithout(shaped(11, markers(11)))
-H.check(loaded, "exactly the floor is enough")
+-- A copy too old to have Status at all. Its absence is the answer, and which
+-- answer depends on the version: behind the floor is too-old, at or above it
+-- means the file that installs Status threw.
+loaded, err, chat = loadWithout(answering(nil, FLOOR - 1))
+H.check(not loaded, "a copy without Status, below the floor, is refused")
+H.check(chat:find("r" .. (FLOOR - 1), 1, true) and not chat:find("completely", 1, true),
+    "as too old rather than broken: " .. chat)
+
+loaded, err, chat = loadWithout(answering(nil, FLOOR))
+H.check(not loaded, "a copy without Status at the floor is refused too")
+H.check(chat:find("completely", 1, true),
+    "as a failed load, because the file that installs Status is the last one: " .. chat)
 
 -- The ported files stop before building anything when the bridge refused the
 -- library, so a missing library is one message rather than a cascade of

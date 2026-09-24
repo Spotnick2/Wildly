@@ -66,8 +66,8 @@ this section is deleted. Update this section as slices land, and delete it when 
 ## Repository Layout
 
 - `Wildly.toc` — addon manifest: interface version, saved variables, load order.
-- `WildlyCompat.lua` — the bridge to the shared library: checks every runtime file of the active
-  copy loaded completely (`NEEDS_MINOR` floor + completion markers), exposes `Wildly.API`,
+- `WildlyCompat.lua` — the bridge to the shared library: asks the library whether its active copy is usable
+  (`lib.Status(NEEDS_MINOR)`, since r12), exposes `Wildly.API`,
   `Wildly.Settings`, `Wildly.Engine`, `Wildly.UI`, and `Wildly.RegisterEvents`, which reports
   rejected events in chat. No API code lives here.
 - `WildlyConfig.lua` — options panel, defaults, the Thorns mode, exported config helpers.
