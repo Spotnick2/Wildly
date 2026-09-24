@@ -1,5 +1,13 @@
 # Wildly Changelog
 
+## Unreleased
+
+### Under the hood
+- **Wildly now asks the shared LibGroupBuffs library whether it loaded properly,** instead of
+  checking the library's internals itself, and needs version r12 of it (included in the download).
+  Nothing should look different to you. If Wildly ever says in chat that it *cannot start*,
+  reinstalling Wildly still fixes it.
+
 ## v1.0.0 - 2026-09-24
 
 **Wildly now runs on World of Warcraft: Forever.** This is the first release for the Forever client
