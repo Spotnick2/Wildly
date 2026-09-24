@@ -229,7 +229,8 @@ and Mangle are TBC spells.
 `svLoadCheck` marker, so the addon can tell when account-wide storage is fixed. Same as Priestly.
 
 **NO SavedVariables load back on this client — per-character included** (measured on build
-1.60.1.69913; see Priestly's `AGENTS.md` and `docs/FOREVER-PROBE.md` section 11). Every session
+1.60.1.69913, still true on 69977, the installed build - shared notes,
+`PORTING-TBC-TO-FOREVER.md` section 0; see Priestly's `AGENTS.md` and `docs/FOREVER-PROBE.md` section 11). Every session
 starts from defaults. Write the addon so losing every setting at login is survivable.
 
 - **Never verify persistence by reading the SV file or diffing it against `.bak`.** It always
