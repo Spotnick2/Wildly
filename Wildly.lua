@@ -375,9 +375,17 @@ end
 -- A window that closed ITSELF because a setting left it no rows - Thorns on
 -- tanks in a tankless group with Mark untracked, say - is not a close the
 -- player asked for, so the next setting that could give it rows reopens it.
+--
+-- In combat: an open window is left to the library, which rebuilds it at
+-- combat end. A closed one that would open has nothing recorded for combat
+-- end to act on, so it asks ui:Open, which remembers a show made under
+-- lockdown and carries it out when the fight ends.
 function Wildly_ForceRebuild()
-    if InCombatLockdown() then return end
-    if ui:IsVisible() or WantsOpen() then ui:Open(0.1) end
+    if ui:IsVisible() then
+        if not InCombatLockdown() then ui:Open(0.1) end
+    elseif WantsOpen() then
+        ui:Open(0.1)
+    end
 end
 
 -- Called when the solo checkbox is toggled in config. Not refused in combat:

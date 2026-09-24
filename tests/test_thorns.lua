@@ -300,4 +300,38 @@ WoW.flushTimers()
 H.check(T.ui:IsVisible(), "picking a mode that gives it rows brings it back")
 H.eq(drawn(), "1:thorns", "with the Thorns row")
 
+-- The same, but the mode is picked mid-fight: the window cannot be built
+-- then, and must not be forgotten either.
+setup("tanks")
+party()
+WoW.units.party1.role = nil
+WoW.units.partypet2 = nil
+WildlyDB.trackMark = false
+WoW.dispatch("PLAYER_LOGIN")
+WoW.flushTimers()
+WoW.flushTimers()
+H.check(not T.ui:IsVisible(), "closed itself again")
+WoW.inCombat = true
+Wildly_SetConfig("thornsMode", "everyone")
+Wildly_ForceRebuild()
+WoW.flushTimers()
+H.check(not T.ui:IsVisible(), "nothing is built during the fight")
+WoW.inCombat = false
+WoW.dispatch("PLAYER_REGEN_ENABLED")
+WoW.flushTimers()
+WoW.flushTimers()
+H.check(T.ui:IsVisible(), "and the window opens when the fight ends")
+H.eq(drawn(), "1:thorns", "with the Thorns row the new mode gives it")
+
+-- A deliberate close picked up mid-fight is still never undone.
+T.CloseUI(true)
+WoW.inCombat = true
+Wildly_ForceRebuild()
+WoW.flushTimers()
+WoW.inCombat = false
+WoW.dispatch("PLAYER_REGEN_ENABLED")
+WoW.flushTimers()
+WoW.flushTimers()
+H.check(not T.ui:IsVisible(), "a window closed on purpose stays closed after the fight")
+
 H.done("test_thorns")
