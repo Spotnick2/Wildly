@@ -94,8 +94,13 @@ H.eq(row:GetAttribute("spell2"), "Mark of the Wild", "right-click stays single-t
 -- Thorns: the same spell on both buttons
 ------------------------------------------------------------
 
-rows = setup({ "MARK_SINGLE", "MARK_GROUP", "THORNS" })
-H.eq(#activeRows(rows), 2, "a row per buff")
+-- "everyone", because this is about how the row is wired; who it covers in
+-- each mode is test_thorns'. In the default mode this tankless party has no
+-- Thorns row at all.
+setup({ "MARK_SINGLE", "MARK_GROUP", "THORNS" })
+WildlyDB.thornsMode = "everyone"
+T.UpdateUI()
+H.eq(#activeRows(T.rows()), 2, "a row per buff")
 row = rowFor("thorns")
 H.check(row ~= nil, "Thorns has its own row")
 H.eq(row:GetAttribute("spell1"), "Thorns", "left-click casts Thorns - never Gift of the Wild")
@@ -184,6 +189,8 @@ local function hintFor(r)
 end
 
 setup({ "MARK_SINGLE", "THORNS" })
+WildlyDB.thornsMode = "everyone"
+T.UpdateUI()
 local hint = hintFor(rowFor("mark"))
 H.check(hint:find("Mark of the Wild"), "the hint names the spell: " .. hint)
 H.check(not hint:find("Gift"), "and never a Gift this druid cannot cast: " .. hint)

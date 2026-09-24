@@ -1,0 +1,214 @@
+------------------------------------------------------------
+-- test_thorns.lua - who the Thorns row covers.
+--
+-- Thorns is why LibGroupBuffs has membersFor: the engine asks Wildly once per
+-- row which members it covers, and uses that list for the stats, the target,
+-- the popover and the clicks. These pin the five modes, and the two traps the
+-- TBC code fell into: `unit == "player"` (in a raid you are raidN) and the
+-- main tank matched by name (first names are not unique on Forever).
+--
+--   & 'C:\Program Files (x86)\Lua\5.1\lua.exe' tests\test_thorns.lua
+------------------------------------------------------------
+
+dofile("tests/wow_stubs.lua")
+local H = dofile("tests/harness.lua")
+local T = H.loadAddon()
+
+local THORNS, MARK
+for _, d in ipairs(T.DEFS) do
+    if d.id == "thorns" then THORNS = d end
+    if d.id == "mark" then MARK = d end
+end
+
+local function setup(mode)
+    WoW.reset()
+    WildlyDB = nil
+    Wildly_EnsureDefaults()
+    if mode then WildlyDB.thornsMode = mode end
+    H.TeachSpells({ "MARK_SINGLE", "THORNS" })
+    T.RefreshSpellData()
+end
+
+local function units(list)
+    local out = {}
+    for _, m in ipairs(list) do out[#out + 1] = m.unit end
+    table.sort(out)
+    return table.concat(out, ",")
+end
+
+-- A party: you, a warrior who has set the tank role, a mage, and a pet.
+local function party()
+    WoW.SetUnit("player", { name = "Karuzo Elegia", guid = "P0", class = "DRUID" })
+    WoW.SetUnit("party1", { name = "Sten Thornbeard", guid = "P1", class = "WARRIOR", role = "TANK" })
+    WoW.SetUnit("party2", { name = "Mirel Dawnsong", guid = "P2", class = "MAGE" })
+    WoW.SetUnit("partypet2", { name = "Water Elemental", guid = "PET2" })
+    WoW.groupMembers = 3
+    return {
+        { unit = "player", name = "Karuzo Elegia" },
+        { unit = "party1", name = "Sten Thornbeard" },
+        { unit = "party2", name = "Mirel Dawnsong" },
+        { unit = "partypet2", name = "Water Elemental" },
+    }
+end
+
+-- A raid where you are raid3, two raiders share the first name "Karuzo", and
+-- the main tank is the SECOND Karuzo. No LFG roles at all.
+local function raid()
+    WoW.SetUnit("player", { name = "Karuzo Elegia", guid = "P0", class = "DRUID" })
+    WoW.inRaid = true
+    WoW.groupMembers = 4
+    WoW.SetUnit("raid1", { name = "Karuzo Vale", guid = "R1", class = "WARRIOR" })
+    WoW.SetUnit("raid2", { name = "Karuzo Stone", guid = "R2", class = "WARRIOR" })
+    WoW.SetUnit("raid3", { name = "Karuzo Elegia", guid = "P0", class = "DRUID" })   -- you
+    WoW.SetUnit("raid4", { name = "Mirel Dawnsong", guid = "R4", class = "MAGE" })
+    WoW.SetUnit("raidpet4", { name = "Water Elemental", guid = "PET4" })
+    WoW.raidRoster = {
+        { name = "Karuzo", subgroup = 1 },
+        { name = "Karuzo", subgroup = 1, role = "MAINTANK" },
+        { name = "Karuzo", subgroup = 1 },
+        { name = "Mirel", subgroup = 1 },
+    }
+    return {
+        { unit = "raid1", name = "Karuzo Vale" },
+        { unit = "raid2", name = "Karuzo Stone" },
+        { unit = "raid3", name = "Karuzo Elegia" },
+        { unit = "raid4", name = "Mirel Dawnsong" },
+        { unit = "raidpet4", name = "Water Elemental" },
+    }
+end
+
+------------------------------------------------------------
+-- Every other buff is untouched
+------------------------------------------------------------
+
+setup("self")
+local members = party()
+H.eq(T.MembersFor(MARK, members), members, "Mark of the Wild covers the whole group, pets included")
+
+------------------------------------------------------------
+-- Party, mode by mode
+------------------------------------------------------------
+
+setup("everyone")
+members = party()
+H.eq(units(T.MembersFor(THORNS, members)), "party1,party2,player", "everyone: every player, no pet")
+
+setup("self")
+members = party()
+H.eq(units(T.MembersFor(THORNS, members)), "player", "self: only you")
+
+setup("tanks")
+members = party()
+H.eq(units(T.MembersFor(THORNS, members)), "party1", "tanks: the member with the tank role")
+
+setup("default")
+members = party()
+H.eq(units(T.MembersFor(THORNS, members)), "party1", "default in a group: the tanks")
+
+setup("disabled")
+members = party()
+H.eq(#T.MembersFor(THORNS, members), 0, "disabled: nobody")
+
+-- A party where nobody set a role - likely on a client with no LFG, which is
+-- not yet measured - has no tanks, so default and tanks both cover nobody and
+-- the row disappears.
+setup("default")
+members = party()
+WoW.units.party1.role = nil
+H.eq(#T.MembersFor(THORNS, members), 0, "no roles set: no tanks, no Thorns row")
+
+------------------------------------------------------------
+-- Solo
+------------------------------------------------------------
+
+setup("default")
+WoW.groupMembers = 0
+local solo = { { unit = "player", name = "Karuzo Elegia" }, { unit = "pet", name = "Treant" } }
+H.eq(units(T.MembersFor(THORNS, solo)), "player", "default alone: yourself")
+WildlyDB.thornsMode = "tanks"
+H.eq(#T.MembersFor(THORNS, solo), 0, "tanks alone: nobody, you have no tank role")
+WildlyDB.thornsMode = "everyone"
+H.eq(units(T.MembersFor(THORNS, solo)), "player", "everyone alone: you, never your pet")
+
+------------------------------------------------------------
+-- Raid: the two TBC traps
+------------------------------------------------------------
+
+setup("self")
+members = raid()
+H.eq(units(T.MembersFor(THORNS, members)), "raid3",
+    "self in a raid finds you as raid3 - `unit == \"player\"` never matched here")
+
+setup("tanks")
+members = raid()
+H.eq(units(T.MembersFor(THORNS, members)), "raid2",
+    "the main tank is raid2, by roster index - not raid1 or you, who share the first name")
+
+setup("default")
+members = raid()
+H.eq(units(T.MembersFor(THORNS, members)), "raid2", "default in a raid: the main tank")
+
+-- A role set on a raider counts too, alongside the main tank.
+WoW.units.raid4.role = "TANK"
+H.eq(units(T.MembersFor(THORNS, members)), "raid2,raid4", "and anyone with the tank role")
+
+setup("everyone")
+members = raid()
+H.eq(units(T.MembersFor(THORNS, members)), "raid1,raid2,raid3,raid4", "everyone: all raiders, no pet")
+
+-- A MAINTANK entry means nothing outside a raid: party tokens have no roster index.
+H.eq(T.IsTank("party1"), false, "a party unit is never matched against the raid roster")
+H.eq(T.IsPet("raidpet4") and T.IsPet("partypet2") and T.IsPet("pet"), true, "pet tokens are pets")
+H.eq(T.IsPet("raid4") or T.IsPet("player") or T.IsPet("party1"), false, "players are not")
+
+------------------------------------------------------------
+-- The window follows the filtered list
+--
+-- The engine calls membersFor once per row and uses that list everywhere, so
+-- the row's target and its popover can only ever name covered members.
+------------------------------------------------------------
+
+-- The rows drawn, as "group:buff", group 99 up being the pet buckets.
+local function drawn()
+    local out = {}
+    for _, r in ipairs(T.rows()) do
+        if r._active then out[#out + 1] = r._gNum .. ":" .. r._def.id end
+    end
+    return table.concat(out, ",")
+end
+
+setup("tanks")
+party()
+T.UpdateUI()
+H.eq(drawn(), "1:mark,1:thorns,99:mark",
+    "the pet bucket gets a Mark row and no Thorns row - Thorns never covers a pet")
+local thornsRow, markRow
+for _, r in ipairs(T.rows()) do
+    if r._active and r._gNum == 1 and r._def.id == "thorns" then thornsRow = r end
+    if r._active and r._gNum == 1 and r._def.id == "mark" then markRow = r end
+end
+H.check(thornsRow ~= nil, "a party with a tank has a Thorns row")
+H.eq(thornsRow and thornsRow:GetAttribute("unit2"), "party1", "whose click lands on the tank")
+H.eq(thornsRow and thornsRow:GetAttribute("unit1"), "party1", "on both buttons")
+H.eq(thornsRow and units(thornsRow._members), "party1", "and whose popover lists only the tank")
+H.check(markRow ~= nil and #markRow._members == 3, "while the Mark row still covers all three players")
+
+-- Buffing the tank satisfies the row, even though nobody else has Thorns.
+WoW.SetAura("party1", "Thorns", 600, 500)
+T.UpdateUI()
+local st = T.engine:GroupStat(thornsRow._members, THORNS)
+H.eq(st.nMiss, 0, "the tank having Thorns means nobody on the row is missing it")
+
+-- No tank in the group: no Thorns row at all, the Mark row stays.
+setup("tanks")
+party()
+WoW.units.party1.role = nil
+T.UpdateUI()
+H.eq(drawn(), "1:mark,99:mark", "a tankless group gets no Thorns row, and keeps Mark")
+
+-- Changing the mode in the panel reaches the window through the rebuild.
+WildlyDB.thornsMode = "everyone"
+T.UpdateUI()
+H.eq(drawn(), "1:mark,1:thorns,99:mark", "switching to everyone brings the Thorns row back")
+
+H.done("test_thorns")

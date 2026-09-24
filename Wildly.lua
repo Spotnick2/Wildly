@@ -79,6 +79,74 @@ local DEFS = {
 -- The Mark of the Wild def, which the reagent and the help text ask about.
 local MARK = DEFS[1]
 
+-- ─── Who the Thorns row covers ──────────────────────────────────────────────
+--
+-- Thorns is a single-target buff worth keeping on whoever takes the hits, so
+-- its row covers only the members its mode names. The engine calls this once
+-- per row and uses the result for the stats, the targets, the popover and
+-- the clicks alike, so they cannot disagree; an empty list means no row.
+--
+-- Two traps the TBC code fell into:
+--   * "Is this me?" is UnitIsUnit, never `unit == "player"`: in a raid the
+--     roster names you raidN.
+--   * Never match a raid member by name. Characters have surnames here and
+--     UnitName returns only the first name for anyone but the player, so two
+--     raiders can share one. The main-tank role comes from GetRaidRosterInfo
+--     by index, and belongs to the unit "raid"..index.
+
+-- Pets carry pet unit tokens (pet, partypetN, raidpetN), which is how the
+-- engine names them; Thorns is for players.
+local function IsPet(unit)
+    return unit == "pet" or unit:find("pet%d+$") ~= nil
+end
+
+-- The raid's main tank, by roster index. GetRaidRosterInfo's 10th value is
+-- the Retail shape, not yet measured on this client (AGENTS.md).
+local function IsMainTank(unit)
+    local index = tonumber(unit:match("^raid(%d+)$"))
+    if not index or not IsInRaid() then return false end
+    local role = select(10, GetRaidRosterInfo(index))
+    return role == "MAINTANK"
+end
+
+local function IsTank(unit)
+    if UnitGroupRolesAssigned(unit) == "TANK" then return true end
+    return IsMainTank(unit)
+end
+
+local function IsSelf(unit)
+    return UnitIsUnit(unit, "player") and true or false
+end
+
+local function ThornsMembers(members)
+    local mode = Wildly_GetThornsMode and Wildly_GetThornsMode() or "default"
+    if mode == "disabled" then return {} end
+    if mode == "default" then
+        mode = (GetNumGroupMembers() > 0) and "tanks" or "self"
+    end
+    local out = {}
+    for _, m in ipairs(members) do
+        local unit = m.unit
+        if not IsPet(unit) then
+            local include
+            if mode == "everyone" then
+                include = true
+            elseif mode == "self" then
+                include = IsSelf(unit)
+            else -- "tanks"
+                include = IsTank(unit)
+            end
+            if include then out[#out + 1] = m end
+        end
+    end
+    return out
+end
+
+local function MembersFor(def, members)
+    if def.id ~= "thorns" then return members end
+    return ThornsMembers(members)
+end
+
 -- ─── The buff engine (LibGroupBuffs-1.0's Engine.lua) ─────────────────────
 --
 -- Aura reads and the combat-secrecy cache, durations, the roster, group stats,
@@ -91,6 +159,7 @@ local engine = Wildly.Engine.New({
     showSolo      = function() return Wildly_ShowSolo() end,
     trackPets     = function() return Wildly_TrackPets() end,
     isBuffEnabled = function(defId) return Wildly_IsBuffEnabled(defId) end,
+    membersFor      = MembersFor,
     learnDuration   = function(spell, secs) Wildly_LearnDuration(spell, secs) end,
     learnedDuration = function(spell) return Wildly_GetLearnedDuration(spell) end,
 })
@@ -523,6 +592,9 @@ Wildly._test = {
     ClickSpells      = ClickSpells,
     ActiveDefs       = ActiveDefs,
     PickTarget       = PickTarget,
+    MembersFor       = function(def, members) return engine:MembersFor(def, members) end,
+    IsTank           = IsTank,
+    IsPet            = IsPet,
     AuraEventIsRelevant = AuraEventIsRelevant,
     GetSpecIcon      = GetSpecIcon,
     GetGiftRank      = GetGiftRank,
