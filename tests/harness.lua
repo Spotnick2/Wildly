@@ -7,9 +7,6 @@
 --     H.done("test_thing")
 --
 -- Run from the repo root so the relative paths resolve.
---
--- Spell helpers and the combat secrecy switch arrive with the slice whose
--- tests need them (the host, slice 3).
 ------------------------------------------------------------
 
 local H = { run = 0, failures = 0 }
@@ -82,9 +79,7 @@ end
 -- loadAddon skips them and so do the scans. The slice that ports a file
 -- removes it here; test_bridge fails while a listed file already uses
 -- Wildly.API, so the list cannot outlive the port.
-H.NOT_YET_PORTED = {
-    ["Wildly.lua"] = "slice 3 (host)",
-}
+H.NOT_YET_PORTED = {}
 
 -- Everything the TOC loads that has been ported, in its order: the library,
 -- then Wildly's files. Returns the test seams (nil until the file that sets
@@ -95,6 +90,37 @@ function H.loadAddon()
         if not H.NOT_YET_PORTED[file] then run(file) end
     end
     return Wildly._test, Wildly._testConfig, Wildly.API
+end
+
+-- The buffs, by the IDs Wildly.lua uses.
+H.SPELL = {
+    MARK_SINGLE = 1126, MARK_GROUP = 21849,
+    THORNS      = 467,
+}
+H.NAME = {
+    MARK_SINGLE = "Mark of the Wild",
+    MARK_GROUP  = "Gift of the Wild",
+    THORNS      = "Thorns",
+}
+
+-- Teach the stub client every spell name, and make `known` (a list of keys
+-- into H.SPELL) the ones the player actually has. `ranks` optionally gives a
+-- key's spellbook subtext ("Rank 2"), which is where the reagent comes from.
+function H.TeachSpells(known, ranks)
+    for key, id in pairs(H.SPELL) do
+        WoW.DefineSpell(id, H.NAME[key])
+    end
+    for _, key in ipairs(known or {}) do
+        WoW.Know(H.SPELL[key], H.NAME[key], ranks and ranks[key])
+    end
+end
+
+-- Combat aura secrecy as measured on the live client: the flag is set AND
+-- every index read throws, while the by-name lookup quietly returns nil.
+function H.secrecy(on)
+    WoW.secret = on and true or false
+    WoW.auraReadsThrow = on and true or false
+    WoW.inCombat = on and true or false
 end
 
 function H.done(name)
