@@ -54,9 +54,11 @@ The port lands in slices, one issue and PR each:
 4. **Thorns** — the `membersFor` filter for its five modes.
 5. **In-game pass and release.**
 
-Slices 1 to 4 are done: every file is on the library, and Thorns has its member filter. What is
-left is slice 5 - the in-game pass, the release notes and a tag - so `main` is not released until
-then.
+Slices 1 to 4 are done and **v1.0.0 is the first Forever release** (slice 5). The in-game pass
+had no Druid available, so it was handed to players and testers, and the release notes say so:
+**no Wildly build has been verified in game yet.** The unmeasured items below and the in-game
+checklist under Validation are the open work. Record what is measured in `docs/`, and delete this
+section once a pass has been done.
 
 `H.NOT_YET_PORTED` in `tests/harness.lua` is empty. It stays, with the check in `test_bridge`, until
 this section is deleted. Update this section as slices land, and delete it when the port is done.
