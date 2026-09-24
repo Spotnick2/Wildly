@@ -27,14 +27,22 @@ local NEEDS_MINOR = 12
 -- file used to carry them, as Priestly's did (Spotnick2/priestly#52). A copy
 -- older than r12 has no Status to ask, which is itself an answer: either it
 -- is too old for this build, or its last file threw before installing it.
+--
+-- That reading REQUIRES NEEDS_MINOR >= 12, the release Status arrived in. Drop
+-- the floor below that - rolling the pin back, say - and a healthy older
+-- library with no Status would be called incomplete, and Wildly would refuse
+-- to start for everyone. tests/test_manifest.lua holds the floor at 12 or
+-- above for exactly that reason.
+--
 -- Called under pcall: it is library code on a shared table another copy may
 -- have left half-built, and a throw here would skip the chat message below.
+-- What it threw goes into the developers' error, not the player's line.
 local lib, minor
 if LibStub then lib, minor = LibStub("LibGroupBuffs-1.0", true) end
-local status
+local status, statusError
 if lib and type(lib.Status) == "function" then
     local asked, answer = pcall(lib.Status, NEEDS_MINOR)
-    status = asked and answer or "incomplete"
+    if asked then status = answer else status, statusError = "incomplete", answer end
 end
 if lib and not status then
     status = (type(minor) == "number" and minor < NEEDS_MINOR) and "too-old" or "incomplete"
@@ -66,7 +74,9 @@ if problem then
         DEFAULT_CHAT_FRAME:AddMessage("|cffff7c0a[Wildly]|r |cffff6666Wildly cannot start:|r "
             .. problem .. ". Reinstalling Wildly should fix it.")
     end
-    error("Wildly: " .. problem .. " (Libs\\LibGroupBuffs-1.0). Developers: check out "
+    error("Wildly: " .. problem .. " (Libs\\LibGroupBuffs-1.0"
+        .. (statusError and ("; lib.Status threw: " .. tostring(statusError)) or "")
+        .. "). Developers: check out "
         .. "LibGroupBuffs next to the repository and run Tools/deploy.ps1.")
 end
 

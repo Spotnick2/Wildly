@@ -213,6 +213,15 @@ loaded, err, chat = loadWithout(answering(function() error("half-built") end, FL
 H.check(not loaded, "a library whose Status throws is refused")
 H.check(chat:find("cannot start", 1, true) and chat:find("completely", 1, true),
     "and the player is told, as a failed load: " .. chat)
+H.check(err:find("half-built", 1, true),
+    "and what it threw reaches the developers' error: " .. err)
+H.check(not chat:find("half-built", 1, true), "but not the player's chat line: " .. chat)
+
+-- A status this build has never heard of - a future library with a fourth
+-- answer - is refused rather than treated as usable.
+loaded, err, chat = loadWithout(answering("something-new", FLOOR))
+H.check(not loaded, "an unrecognised status is refused")
+H.check(chat:find("completely", 1, true), "rather than assumed to be fine: " .. chat)
 
 loaded, err, chat = loadWithout(answering("incomplete", FLOOR))
 H.check(not loaded, "one that says it is incomplete is refused")
@@ -251,33 +260,44 @@ H.check(chat:find("completely", 1, true),
 
 do
     local root = H.libraryRoot()
-    local older = {}
-    for _, name in ipairs({ "Compat", "Settings", "Engine", "UI" }) do
-        older[#older + 1] = root .. "/tests/fixtures/" .. name .. "-r" .. (FLOOR - 1) .. ".lua"
+    -- Load a file or stop, naming it: loadfile's nil would otherwise die as
+    -- "attempt to call a nil value" with no idea which file.
+    local function run(path)
+        local chunk, why = loadfile(path)
+        if not chunk then error("cannot load " .. path .. ": " .. tostring(why), 2) end
+        chunk()
     end
-    local haveFixtures = true
-    for _, path in ipairs(older) do
-        local f = io.open(path, "r")
-        if f then f:close() else haveFixtures = false end
-    end
-    H.check(haveFixtures, "the library checkout carries its r" .. (FLOOR - 1) .. " fixtures to load first")
 
-    if haveFixtures then
+    -- The older copy's files, named by the library's own XML rather than by
+    -- this file: each runtime file at the library's root, as its previous-tag
+    -- fixture. A file added since then has no fixture and is simply not part
+    -- of the older copy.
+    local L = dofile("tests/libfiles.lua")
+    local current = L.resolve(root)
+    local older = {}
+    for _, file in ipairs(current) do
+        local name = file:match("^([%w_]+)%.lua$")
+        local path = name and (root .. "/tests/fixtures/" .. name .. "-r" .. (FLOOR - 1) .. ".lua")
+        local f = path and io.open(path, "r")
+        if f then f:close() older[#older + 1] = path end
+    end
+    H.check(#older > 0, "the library checkout carries r" .. (FLOOR - 1) .. " fixtures to load first")
+
+    if #older > 0 then
         Wildly = nil
         -- A LibStub with nothing registered, the way a session starts.
-        local stub = loadfile(root .. "/LibStub/LibStub.lua")
         LibStub = nil
-        stub()
+        run(root .. "/LibStub/LibStub.lua")
 
-        for _, path in ipairs(older) do loadfile(path)() end
-        local _, before = LibStub:GetLibrary("LibGroupBuffs-1.0")
+        for _, path in ipairs(older) do run(path) end
+        local _, before = LibStub:GetLibrary("LibGroupBuffs-1.0", true)
         H.eq(before, FLOOR - 1, "another addon's older copy registered first")
 
         -- Now Wildly's own, as its TOC does.
-        local L = dofile("tests/libfiles.lua")
-        for _, file in ipairs(L.resolve(root)) do loadfile(root .. "/" .. file)() end
-        local _, after = LibStub:GetLibrary("LibGroupBuffs-1.0")
-        H.check(after > before, "and Wildly's copy upgrades it to r" .. tostring(after))
+        for _, file in ipairs(current) do run(root .. "/" .. file) end
+        local _, after = LibStub:GetLibrary("LibGroupBuffs-1.0", true)
+        H.check(type(before) == "number" and type(after) == "number" and after > before,
+            "and Wildly's copy upgrades it: r" .. tostring(before) .. " to r" .. tostring(after))
 
         local said = #WoW.messages
         local ok, why = pcall(dofile, "WildlyCompat.lua")
