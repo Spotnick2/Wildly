@@ -35,8 +35,9 @@ or the sibling checkout. There is no vendored copy to fall back to, on purpose.
   collects callbacks, `C_UnitAuras` with a secrecy switch, known spells, and units with GUIDs and
   surnames. Drive it through the global `WoW` table. `dofile("tests/wow_stubs.lua")` **first** in
   every test.
-- **`harness.lua`** — `check` / `eq`, `readFile`, `tocFiles()` and `loadLibrary()` (the library
-  through its own XML). Loading Wildly's own files arrives with the slices that port them.
+- **`harness.lua`** — `check` / `eq`, `readFile`, `tocFiles()`, `loadLibrary()` (the library
+  through its own XML) and `loadAddon()` (the library, then Wildly's files in TOC order, skipping
+  `H.NOT_YET_PORTED` - the files still on TBC code).
 - **`libfiles.lua`** — the one reader of the library's XML, shared by the harness, `run.ps1`,
   `Tools/deploy.ps1` and CI.
 
@@ -46,6 +47,9 @@ or the sibling checkout. There is no vendored copy to fall back to, on purpose.
 |---|---|
 | `test_manifest.lua` | The TOC: interface 16001, per-character `WildlyDB` plus the account-wide `WildlySVCheck`, load order, and that the TOC path, `.pkgmeta` externals, pinned tag, `NEEDS_MINOR` and `.gitignore` agree. |
 | `test_bridge.lua` | `Wildly.API` / `.Settings` / `.Engine` / `.UI` are the library's own tables; rejected events are printed in chat; a missing library, one missing any single piece or marker, and a too-old one are each refused with a message a player sees. Also scans every ported file: each `API.*` it uses exists, no library function is copied into a local, and events go only through `Wildly.RegisterEvents`. |
+| `test_config.lua` | `WildlyDB` defaults, the five Thorns modes (an unknown one is repaired), buff toggles (`disabled` Thorns drops the row), learned durations per spell name and client build, and the window's settings accessors. |
+| `test_config_seam.lua` | The one write path: `Wildly_SetConfig` reports through the hook, the library's `config_scan.lua` finds no direct `WildlyDB` write in any ported file, the owner regions are pinned, and the SavedVariables-fix and new-build checks fire (or stay quiet) on the right logins. |
+| `test_options.lua` | Builds the options panel and clicks everything in it, with spies for the hooks `Wildly.lua` will define: each checkbox, both radio groups and the slider save through the setter and ask the window to rebuild; the panel builds when no text has been measured, and opens from `Wildly_OpenConfig`. |
 | `test_libfiles.lua` | The library's file list, read from its XML, and that `libfiles.lua` does not mistake a test for its own script mode. |
 | `test_stub.lua` | The stub entries Wildly added (`strsplit`, `UnitIsUnit`, `GetRaidRosterInfo`, `UnitGroupRolesAssigned`) keep the client's shape. |
 
