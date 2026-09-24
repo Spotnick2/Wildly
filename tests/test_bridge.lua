@@ -178,20 +178,41 @@ H.check(chat:find("completely", 1, true), "and reported as that, not as missing:
 -- except one piece" cases are tested there (LibGroupBuffs r12). Wildly's job
 -- is to react - refuse, and say the right thing to the player - and that is
 -- all this file tests.
-local FLOOR = tonumber((H.readFile("WildlyCompat.lua") or ""):match("NEEDS_MINOR = (%d+)"))
-H.check(FLOOR ~= nil, "the bridge declares the oldest library it works against")
+local FLOOR = tonumber((H.readFile("WildlyCompat.lua") or ""):match("NEEDS_MINOR%s*=%s*(%d+)"))
+-- Every case below is relative to the floor, so without it there is nothing
+-- to test - stop here rather than on arithmetic with nil.
+if not FLOOR then error("test_bridge: no NEEDS_MINOR found in WildlyCompat.lua") end
 
+-- A fake library whose Status gives a set answer. `status` may also be a
+-- function, standing in for Status itself. Records the floor it was asked
+-- about, in askedFloor.
+local askedFloor
 local function answering(status, minor)
     local l = { API = { RegisterEventsReported = function() return true end,
                         ClickEdges = function() end },
                 Settings = { New = function() end }, Engine = { New = function() end },
-                UI = { New = function() end },
-                Status = status and function() return status, minor end or nil }
+                UI = { New = function() end } }
+    if type(status) == "function" then
+        l.Status = status
+    elseif status then
+        l.Status = function(needs) askedFloor = needs return status, minor end
+    end
     return setmetatable({}, { __call = function() return l, minor end })
 end
 
+askedFloor = nil
 loaded = loadWithout(answering("ok", FLOOR))
 H.check(loaded, "a library that says it is ok is accepted")
+-- Without the floor, Status never answers too-old, and the next bump of
+-- NEEDS_MINOR would quietly accept an older copy.
+H.eq(askedFloor, FLOOR, "and it was asked about this build's floor")
+
+-- Status is library code on a shared table. If it throws, the player must
+-- still be told, not left with an addon that silently does nothing.
+loaded, err, chat = loadWithout(answering(function() error("half-built") end, FLOOR))
+H.check(not loaded, "a library whose Status throws is refused")
+H.check(chat:find("cannot start", 1, true) and chat:find("completely", 1, true),
+    "and the player is told, as a failed load: " .. chat)
 
 loaded, err, chat = loadWithout(answering("incomplete", FLOOR))
 H.check(not loaded, "one that says it is incomplete is refused")
@@ -217,6 +238,56 @@ loaded, err, chat = loadWithout(answering(nil, FLOOR))
 H.check(not loaded, "a copy without Status at the floor is refused too")
 H.check(chat:find("completely", 1, true),
     "as a failed load, because the file that installs Status is the last one: " .. chat)
+
+------------------------------------------------------------
+-- The real load order: an older copy loaded first is UPGRADED, not refused
+--
+-- The fakes above call the bridge directly, which is not how the game gets
+-- here. Wildly's TOC loads its own copy of the library BEFORE this file, so
+-- another addon's older copy has already been upgraded by LibStub when the
+-- bridge runs - and the real Status has to say "ok" over what the older copy
+-- left on the shared table.
+------------------------------------------------------------
+
+do
+    local root = H.libraryRoot()
+    local older = {}
+    for _, name in ipairs({ "Compat", "Settings", "Engine", "UI" }) do
+        older[#older + 1] = root .. "/tests/fixtures/" .. name .. "-r" .. (FLOOR - 1) .. ".lua"
+    end
+    local haveFixtures = true
+    for _, path in ipairs(older) do
+        local f = io.open(path, "r")
+        if f then f:close() else haveFixtures = false end
+    end
+    H.check(haveFixtures, "the library checkout carries its r" .. (FLOOR - 1) .. " fixtures to load first")
+
+    if haveFixtures then
+        Wildly = nil
+        -- A LibStub with nothing registered, the way a session starts.
+        local stub = loadfile(root .. "/LibStub/LibStub.lua")
+        LibStub = nil
+        stub()
+
+        for _, path in ipairs(older) do loadfile(path)() end
+        local _, before = LibStub:GetLibrary("LibGroupBuffs-1.0")
+        H.eq(before, FLOOR - 1, "another addon's older copy registered first")
+
+        -- Now Wildly's own, as its TOC does.
+        local L = dofile("tests/libfiles.lua")
+        for _, file in ipairs(L.resolve(root)) do loadfile(root .. "/" .. file)() end
+        local _, after = LibStub:GetLibrary("LibGroupBuffs-1.0")
+        H.check(after > before, "and Wildly's copy upgrades it to r" .. tostring(after))
+
+        local said = #WoW.messages
+        local ok, why = pcall(dofile, "WildlyCompat.lua")
+        H.check(ok, "so the bridge accepts it, despite the older copy having loaded first: " .. tostring(why))
+        H.eq(#WoW.messages, said, "and says nothing to the player")
+        H.check(Wildly and Wildly.API ~= nil, "with the upgraded library in place")
+    end
+
+    LibStub, Wildly = savedLibStub, savedWildly
+end
 
 -- The ported files stop before building anything when the bridge refused the
 -- library, so a missing library is one message rather than a cascade of

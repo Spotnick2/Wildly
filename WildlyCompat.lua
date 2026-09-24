@@ -27,9 +27,15 @@ local NEEDS_MINOR = 12
 -- file used to carry them, as Priestly's did (Spotnick2/priestly#52). A copy
 -- older than r12 has no Status to ask, which is itself an answer: either it
 -- is too old for this build, or its last file threw before installing it.
+-- Called under pcall: it is library code on a shared table another copy may
+-- have left half-built, and a throw here would skip the chat message below.
 local lib, minor
 if LibStub then lib, minor = LibStub("LibGroupBuffs-1.0", true) end
-local status = lib and lib.Status and lib.Status(NEEDS_MINOR)
+local status
+if lib and type(lib.Status) == "function" then
+    local asked, answer = pcall(lib.Status, NEEDS_MINOR)
+    status = asked and answer or "incomplete"
+end
 if lib and not status then
     status = (type(minor) == "number" and minor < NEEDS_MINOR) and "too-old" or "incomplete"
 end
@@ -38,9 +44,11 @@ local problem
 if not lib then
     problem = "the LibGroupBuffs-1.0 library is missing from Wildly's Libs folder"
 elseif status == "too-old" then
-    -- Complete, just old. Said separately, because it is a different fault:
-    -- nothing crashed. LibStub runs the newest copy any addon brought, so an
-    -- older one being active means Wildly's own copy is missing or stale.
+    -- Behind the floor. Said separately from a failed load: the TOC loads
+    -- Wildly's own copy before this file and LibStub upgrades anything older,
+    -- so an older one being active means Wildly's own copy is missing or
+    -- stale - whatever state the other addon's copy is in. That is what the
+    -- player can fix, so it is what they are told.
     problem = "the LibGroupBuffs-1.0 library in use is r" .. tostring(minor)
         .. ", older than the r" .. NEEDS_MINOR .. " this Wildly needs"
 elseif status ~= "ok" then
