@@ -54,17 +54,12 @@ The port lands in slices, one issue and PR each:
 4. **Thorns** — the `membersFor` filter for its five modes.
 5. **In-game pass and release.**
 
-Slices 1 and 2 are done. Until slice 3 lands, `Wildly.lua` is the TBC code and **does not work on
-Forever** (it calls `UnitBuff`, `GetSpellInfo` and friends), with or without the library, and it
-still writes `WildlyDB` directly. `main` is not releasable in between; nothing is tagged until
-slice 5.
+Slices 1 to 3 are done: every file is on the library. Until slice 4, **Thorns covers everyone in
+the group, pets included** - the engine gets no `membersFor` yet - so `main` is still not
+releasable; nothing is tagged until slice 5.
 
-`tests/harness.lua` keeps `H.NOT_YET_PORTED` (today just `Wildly.lua`). `H.loadAddon()` skips the
-files on it, and so do the source scans in `test_bridge` and `test_config_seam`. The slice that
-ports a file removes it from the list, and `test_bridge` fails while a listed file already uses
-`Wildly.API`, so the list cannot outlive the port. Until then, config tests install spies for the
-hooks `Wildly.lua` will define (`Wildly_ForceRebuild`, `Wildly_OnSoloToggle`, `Wildly_ApplyAlpha`).
-Update this section as slices land, and delete it when the port is done.
+`H.NOT_YET_PORTED` in `tests/harness.lua` is empty. It stays, with the check in `test_bridge`, until
+this section is deleted. Update this section as slices land, and delete it when the port is done.
 
 ## Repository Layout
 
@@ -74,8 +69,8 @@ Update this section as slices land, and delete it when the port is done.
   `Wildly.Settings`, `Wildly.Engine`, `Wildly.UI`, and `Wildly.RegisterEvents`, which reports
   rejected events in chat. No API code lives here.
 - `WildlyConfig.lua` — options panel, defaults, the Thorns mode, exported config helpers.
-- `Wildly.lua` — `DEFS`, the Thorns member filter, the reagent footer items, the spec icon, event
-  handling, slash commands and the test seam. Everything else is LibGroupBuffs:
+- `Wildly.lua` — `DEFS`, the reagent footer items, the spec icon and colours, event handling,
+  slash commands and the test seam (and, from slice 4, the Thorns member filter). Everything else is LibGroupBuffs:
   - `Engine.lua` is the buff logic (aura cache, roster, stats, targeting, click mapping,
     `UNIT_AURA` filtering).
   - `UI.lua` is the window (rows, popover, secure buttons, dragging, ticker, what combat defers).
@@ -119,6 +114,16 @@ Load order from `Wildly.toc`:
 3. `WildlyConfig.lua` — `WildlyDB` defaults, the settings object, the options panel and the
    `Wildly_*` config helpers.
 4. `Wildly.lua` — the host.
+
+`Wildly.lua` exposes, for the config: `Wildly_ScheduleRefresh`, `Wildly_ForceRebuild` (does
+nothing in combat; the library rebuilds a visible window at combat end), `Wildly_OnSoloToggle`,
+`Wildly_ApplyAlpha`. It decides when the window opens: at login for a Druid in a group (or solo
+mode) unless `visible` is false, or later when the spells arrive; on joining a group, overriding a
+close (but not the roster arriving just after login); never on other roster churn, a ready check or
+a settings change over a close; nothing at all on another class, slash commands included (one
+line saying so). The Gift rank and spec icon are read from the spellbook when spells change, never
+per rebuild. Its test seam is
+`Wildly._test`.
 
 `WildlyConfig.lua` exposes: `Wildly_EnsureDefaults`, `Wildly_ShowSolo`, `Wildly_TrackPets`,
 `Wildly_IsBuffEnabled` (`"thorns"` is false in the `disabled` mode), `Wildly_GetThornsMode`,
@@ -178,6 +183,12 @@ Two traps the TBC code fell into, which the filter must not repeat:
 
 Not yet measured, and needed before this ships:
 
+- Whether the spec-icon spells resolve (Moonkin Form 24858, Swiftmend 18562, Leader of the Pack
+  17007), and whether the spellbook's rank subtext for Gift of the Wild reads `Rank 1` / `Rank 2`,
+  which is what picks the reagent (`API.GetSpellRank`).
+- Whether `GetNumGroupMembers()` already counts the group at `PLAYER_LOGIN`. `Wildly.lua` treats a
+  0-to-n roster change within `ROSTER_SETTLE_SECONDS` (5) of login as the roster arriving, not a
+  join, so it cannot undo a close; the number is a guess until measured.
 - Whether `UnitGroupRolesAssigned` returns anything but `"NONE"` on this client (there is no LFG).
   If not, a party has no tanks and `default` shows no Thorns row there.
 - `GetRaidRosterInfo`'s return shape. It is only in the dump's undocumented globals; the stub

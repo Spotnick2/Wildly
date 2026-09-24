@@ -7,10 +7,10 @@
 -- wow_stubs.lua, which is the one thing protecting against an API that
 -- quietly went away.
 --
--- Wildly.lua is not loaded (it is still the TBC code until the host slice),
--- so the hooks it defines for the config - Wildly_ForceRebuild and friends -
--- are installed here as spies. That tests what the panel asks for, which is
--- the panel's whole job.
+-- The hooks Wildly.lua defines for the config - Wildly_ForceRebuild and
+-- friends - are replaced here by spies, and put back at the end. That tests
+-- what the panel asks for, which is the panel's whole job; what the host then
+-- does with it is test_frames' and test_visibility's.
 --
 --   & 'C:\Program Files (x86)\Lua\5.1\lua.exe' tests\test_options.lua
 ------------------------------------------------------------
@@ -24,6 +24,9 @@ WildlyDB = nil
 Wildly_EnsureDefaults()
 
 local calls = {}
+local HOOKS = { "Wildly_ForceRebuild", "Wildly_OnSoloToggle", "Wildly_ApplyAlpha" }
+local realHooks = {}
+for _, name in ipairs(HOOKS) do realHooks[name] = rawget(_G, name) end
 local function spy(name)
     _G[name] = function(...) calls[#calls + 1] = { name = name, args = { ... } } end
 end
@@ -170,8 +173,8 @@ WoW.flushTimers()
 ------------------------------------------------------------
 -- Without Wildly.lua's hooks at all
 --
--- The config must not depend on the host being loaded: it looks each hook up
--- guarded, so a missing one is skipped, not an error.
+-- The config must not depend on the host having loaded: if Wildly.lua failed,
+-- each hook is looked up guarded, so a missing one is skipped, not an error.
 ------------------------------------------------------------
 
 for _, name in ipairs({ "Wildly_ForceRebuild", "Wildly_OnSoloToggle", "Wildly_ApplyAlpha" }) do
@@ -181,6 +184,7 @@ click("WildlyCB_trackMark")
 click("WildlyRB_thorns_tanks")
 H.check(pcall(onValue, slider, 0.6), "the slider runs with no host loaded")
 H.eq(WildlyDB.thornsMode, "tanks", "and settings still save")
+for name, fn in pairs(realHooks) do _G[name] = fn end
 
 ------------------------------------------------------------
 -- Layout measurement before the text has been laid out
