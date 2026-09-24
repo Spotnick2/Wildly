@@ -54,9 +54,9 @@ The port lands in slices, one issue and PR each:
 4. **Thorns** — the `membersFor` filter for its five modes.
 5. **In-game pass and release.**
 
-Slices 1 to 3 are done: every file is on the library. Until slice 4, **Thorns covers everyone in
-the group, pets included** - the engine gets no `membersFor` yet - so `main` is still not
-releasable; nothing is tagged until slice 5.
+Slices 1 to 4 are done: every file is on the library, and Thorns has its member filter. What is
+left is slice 5 - the in-game pass, the release notes and a tag - so `main` is not released until
+then.
 
 `H.NOT_YET_PORTED` in `tests/harness.lua` is empty. It stays, with the check in `test_bridge`, until
 this section is deleted. Update this section as slices land, and delete it when the port is done.
@@ -69,8 +69,8 @@ this section is deleted. Update this section as slices land, and delete it when 
   `Wildly.Settings`, `Wildly.Engine`, `Wildly.UI`, and `Wildly.RegisterEvents`, which reports
   rejected events in chat. No API code lives here.
 - `WildlyConfig.lua` — options panel, defaults, the Thorns mode, exported config helpers.
-- `Wildly.lua` — `DEFS`, the reagent footer items, the spec icon and colours, event handling,
-  slash commands and the test seam (and, from slice 4, the Thorns member filter). Everything else is LibGroupBuffs:
+- `Wildly.lua` — `DEFS`, the Thorns member filter, the reagent footer items, the spec icon and
+  colours, event handling, slash commands and the test seam. Everything else is LibGroupBuffs:
   - `Engine.lua` is the buff logic (aura cache, roster, stats, targeting, click mapping,
     `UNIT_AURA` filtering).
   - `UI.lua` is the window (rows, popover, secure buttons, dragging, ticker, what combat defers).
@@ -167,11 +167,18 @@ clicks, so they cannot disagree. An empty list means no row. Modes, from `Wildly
 
 | Mode | Members |
 |---|---|
-| `default` | tanks when grouped, yourself when solo |
+| `default` | the group's tanks; yourself if it has none (or you are solo) |
 | `tanks` | tanks only |
 | `self` | yourself only |
 | `everyone` | every player (never pets) |
 | `disabled` | no row: `isBuffEnabled("thorns")` is false |
+
+`MembersFor` in `Wildly.lua` passes every other buff's list through untouched. A tank is
+`UnitGroupRolesAssigned(unit) == "TANK"` or the raid's `MAINTANK`, collected once into a set of
+unit tokens and forgotten on roster and role events (`PLAYER_ROLES_ASSIGNED`,
+`ROLE_CHANGED_INFORM`). Whether the group "has tanks" is decided over the whole group, not per
+subgroup. Pets are recognised by the engine's own tag - a member `class` of `PET` or `PET_<class>` -
+and never covered.
 
 Two traps the TBC code fell into, which the filter must not repeat:
 
@@ -190,7 +197,8 @@ Not yet measured, and needed before this ships:
   0-to-n roster change within `ROSTER_SETTLE_SECONDS` (5) of login as the roster arriving, not a
   join, so it cannot undo a close; the number is a guess until measured.
 - Whether `UnitGroupRolesAssigned` returns anything but `"NONE"` on this client (there is no LFG).
-  If not, a party has no tanks and `default` shows no Thorns row there.
+  If not, a party has no tanks and `default` covers only you there. Also which of
+  `PLAYER_ROLES_ASSIGNED` / `ROLE_CHANGED_INFORM` fires on a role change.
 - `GetRaidRosterInfo`'s return shape. It is only in the dump's undocumented globals; the stub
   models the Retail tuple (role 10th). `UnitIsUnit` and `UnitGroupRolesAssigned` are declared in
   the dump.

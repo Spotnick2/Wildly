@@ -79,6 +79,101 @@ local DEFS = {
 -- The Mark of the Wild def, which the reagent and the help text ask about.
 local MARK = DEFS[1]
 
+-- ─── Who the Thorns row covers ──────────────────────────────────────────────
+--
+-- Thorns is a single-target buff worth keeping on whoever takes the hits, so
+-- its row covers only the members its mode names. The engine calls this once
+-- per row and uses the result for the stats, the targets, the popover and
+-- the clicks alike, so they cannot disagree; an empty list means no row.
+--
+-- Two traps the TBC code fell into:
+--   * "Is this me?" is UnitIsUnit, never `unit == "player"`: in a raid the
+--     roster names you raidN.
+--   * Never match a raid member by name. Characters have surnames here and
+--     UnitName returns only the first name for anyone but the player, so two
+--     raiders can share one. The main-tank role comes from GetRaidRosterInfo
+--     by index, and belongs to the unit "raid"..index.
+
+-- The engine tags every pet it gathers with a class of "PET" or
+-- "PET_<owner's class>" (for its icon); no player class starts that way.
+-- Thorns is for players.
+local function IsPet(member)
+    return type(member.class) == "string" and member.class:find("^PET") ~= nil
+end
+
+-- The group's tanks, as a set of unit tokens: anyone whose role is TANK,
+-- and in a raid the MAINTANK, read from GetRaidRosterInfo by index for the
+-- unit "raid"..index. Built once and reused until the roster or a role
+-- changes (ForgetTanks), because the engine asks per group per rebuild.
+-- GetRaidRosterInfo's 10th value is the Retail shape, not yet measured here.
+local g_Tanks
+
+local function ForgetTanks() g_Tanks = nil end
+
+local PARTY_UNITS = { "player", "party1", "party2", "party3", "party4" }
+
+local function Tanks()
+    if g_Tanks then return g_Tanks end
+    local tanks = {}
+    if IsInRaid() then
+        for i = 1, GetNumGroupMembers() do
+            local unit = "raid" .. i
+            if UnitGroupRolesAssigned(unit) == "TANK"
+                or select(10, GetRaidRosterInfo(i)) == "MAINTANK"
+            then
+                tanks[unit] = true
+            end
+        end
+    else
+        for _, unit in ipairs(PARTY_UNITS) do
+            if UnitExists(unit) and UnitGroupRolesAssigned(unit) == "TANK" then
+                tanks[unit] = true
+            end
+        end
+    end
+    g_Tanks = tanks
+    return tanks
+end
+
+local function IsTank(unit) return Tanks()[unit] == true end
+
+-- "default" is tanks when the group has any, and otherwise yourself. Roles
+-- may well never be set on a client without LFG (unmeasured), and a party
+-- losing its Thorns row for that would be worse than Thorns on you. Decided
+-- over the whole group, not per subgroup: a raid with a main tank covers the
+-- tank, not also you in every subgroup that has none.
+local function EffectiveMode()
+    local mode = Wildly_GetThornsMode()
+    if mode ~= "default" then return mode end
+    if GetNumGroupMembers() > 0 and next(Tanks()) ~= nil then return "tanks" end
+    return "self"
+end
+
+-- "disabled" never reaches here: Wildly_IsBuffEnabled drops the whole row.
+local function ThornsMembers(members)
+    local mode = EffectiveMode()
+    local out = {}
+    for _, m in ipairs(members) do
+        if not IsPet(m) then
+            local include
+            if mode == "everyone" then
+                include = true
+            elseif mode == "self" then
+                include = UnitIsUnit(m.unit, "player")
+            else -- "tanks"
+                include = IsTank(m.unit)
+            end
+            if include then out[#out + 1] = m end
+        end
+    end
+    return out
+end
+
+local function MembersFor(def, members)
+    if def.id ~= "thorns" then return members end
+    return ThornsMembers(members)
+end
+
 -- ─── The buff engine (LibGroupBuffs-1.0's Engine.lua) ─────────────────────
 --
 -- Aura reads and the combat-secrecy cache, durations, the roster, group stats,
@@ -91,6 +186,7 @@ local engine = Wildly.Engine.New({
     showSolo      = function() return Wildly_ShowSolo() end,
     trackPets     = function() return Wildly_TrackPets() end,
     isBuffEnabled = function(defId) return Wildly_IsBuffEnabled(defId) end,
+    membersFor      = MembersFor,
     learnDuration   = function(spell, secs) Wildly_LearnDuration(spell, secs) end,
     learnedDuration = function(spell) return Wildly_GetLearnedDuration(spell) end,
 })
@@ -275,9 +371,21 @@ end
 -- rebuilding a closed one would undo the player's close for a settings change.
 -- In combat the rows cannot change; the library rebuilds a visible window at
 -- combat end.
+--
+-- A window that closed ITSELF because a setting left it no rows - Thorns on
+-- tanks in a tankless group with Mark untracked, say - is not a close the
+-- player asked for, so the next setting that could give it rows reopens it.
+--
+-- In combat: an open window is left to the library, which rebuilds it at
+-- combat end. A closed one that would open has nothing recorded for combat
+-- end to act on, so it asks ui:Open, which remembers a show made under
+-- lockdown and carries it out when the fight ends.
 function Wildly_ForceRebuild()
-    if InCombatLockdown() or not ui:IsVisible() then return end
-    ui:Open(0.1)
+    if ui:IsVisible() then
+        if not InCombatLockdown() then ui:Open(0.1) end
+    elseif WantsOpen() then
+        ui:Open(0.1)
+    end
 end
 
 -- Called when the solo checkbox is toggled in config. Not refused in combat:
@@ -316,7 +424,11 @@ Wildly.RegisterEvents(evtFrame,
     "ACTIVE_TALENT_GROUP_CHANGED",
     "PLAYER_REGEN_ENABLED",
     "BAG_UPDATE",
-    "SPELLS_CHANGED")
+    "SPELLS_CHANGED",
+    -- Who is a tank decides the Thorns row. Both declared in the 69977 dump;
+    -- which one this client actually fires on a role change is unmeasured.
+    "PLAYER_ROLES_ASSIGNED",
+    "ROLE_CHANGED_INFORM")
 
 evtFrame:SetScript("OnEvent", function(self, event, arg1, arg2)
     if event == "PLAYER_LOGIN" then
@@ -326,6 +438,7 @@ evtFrame:SetScript("OnEvent", function(self, event, arg1, arg2)
         if not g_IsDruid then return end
 
         Wildly_EnsureDefaults()
+        ForgetTanks()
         if WildlyDB.visible == nil then SetConfig("visible", true) end
 
         -- Resolve localized spell names and what this druid knows before
@@ -361,7 +474,17 @@ evtFrame:SetScript("OnEvent", function(self, event, arg1, arg2)
         -- Pet summoned or dismissed: rebuild to add/remove pet rows
         ui:ScheduleRefresh()
 
+    elseif event == "PLAYER_ROLES_ASSIGNED" or event == "ROLE_CHANGED_INFORM" then
+        ForgetTanks()
+        if ui:IsVisible() then
+            ui:ScheduleRefresh()
+        elseif WantsOpen() then
+            ui:Open(0.3)   -- a tank appearing can give a closed-for-want-of-rows window its row
+        end
+
     elseif event == "RAID_ROSTER_UPDATE" or event == "GROUP_ROSTER_UPDATE" then
+        -- Unit tokens are reassigned, and the main tank may have changed.
+        ForgetTanks()
         engine:PruneCache()
         local n = GetNumGroupMembers()
         -- Joining a group is the one case that reopens a window the user
@@ -523,6 +646,11 @@ Wildly._test = {
     ClickSpells      = ClickSpells,
     ActiveDefs       = ActiveDefs,
     PickTarget       = PickTarget,
+    MembersFor       = function(def, members) return engine:MembersFor(def, members) end,
+    IsTank           = IsTank,
+    IsPet            = IsPet,
+    ForgetTanks      = ForgetTanks,
+    EffectiveMode    = function() return EffectiveMode() end,
     AuraEventIsRelevant = AuraEventIsRelevant,
     GetSpecIcon      = GetSpecIcon,
     GetGiftRank      = GetGiftRank,

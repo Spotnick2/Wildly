@@ -481,7 +481,7 @@ local function BuildPanel(panel)
     y.v = y.v - (TextHeight(thornsDesc) + 8)
 
     MakeRadioGroup(child, y, "thorns", {
-        { key = "default",  label = "Tanks in a group, yourself when solo" },
+        { key = "default",  label = "Tanks in a group - yourself if it has none, or when solo" },
         { key = "tanks",    label = "Tanks only" },
         { key = "self",     label = "Yourself only" },
         { key = "everyone", label = "Everyone (players, not pets)" },
