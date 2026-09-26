@@ -58,13 +58,25 @@ local DEFAULTS = {
 -- thing that survives a restart here. Bump MEASURED_ON_BUILD after
 -- re-measuring (AGENTS.md); the library warns at every real login until then.
 --
--- 69977 (installed: .build.info, wow_classic_beta 1.60.1.69977). Its API dump
--- and 69913's are identical sets - documented functions, events, enums and
--- structures, widget methods, namespace functions - and the SavedVariables
--- bug survives both (PORTING-TBC-TO-FOREVER.md section 0). The config-seam
--- test pins these literally, so a bump here alone fails it.
+-- 69977 is the build Wildly's notes were measured on. The installed client is
+-- 70009 (.build.info, wow_classic_beta 1.60.1.70009), so the login notice
+-- fires until someone re-measures against it - which is the point of it.
+-- Note 69913 and 69977 have identical documented API sets but 70009 does NOT:
+-- it adds, removes and changes signatures, so a dump comparison cannot carry
+-- the findings over (priestly#60). The config-seam test pins this literally,
+-- so a bump here alone fails it.
+--
+-- There is no companion constant for the settings check. Wildly used to pass
+-- SV_BROKEN_ON_BUILD and the library trusted a returning marker on every
+-- build except that one, so every relog on a build the constant did not name
+-- announced a fix that had not happened - the bug this addon, Priestly and
+-- Magely all shipped when 69913 patched to 69977 without fixing loading. As
+-- of LibGroupBuffs r14 the library reads the marker's OWN recorded build: a
+-- build changes only when the client is patched, a patch requires a full
+-- exit, so a marker returning under a different build cannot be the
+-- in-process cache a relog hands back. 70009 fixed loading for real, and that
+-- reads it correctly with nothing here to keep current.
 local MEASURED_ON_BUILD = "69977"
-local SV_BROKEN_ON_BUILD = "69977"
 
 -- config-owner: begin
 -- The two saved tables, created on first use. WildlyDB holds the settings
@@ -93,7 +105,6 @@ local settings = Wildly.Settings.New({
         { label = "account-wide",  get = AccountCheckStore },
     },
     measuredOnBuild = MEASURED_ON_BUILD,
-    svBrokenOnBuild = SV_BROKEN_ON_BUILD,
     report = function(text, kind)
         if not DEFAULT_CHAT_FRAME then return end
         if kind == "settingsLoaded" then text = "|cff55ff55" .. text .. "|r" end
@@ -243,9 +254,10 @@ end
 --
 -- Both checks live in LibGroupBuffs-1.0's Settings.lua. The load check keeps a
 -- `svLoadCheck` marker in each scope - written every session, never in
--- DEFAULTS - and says so once when one comes back on a real login on a build
--- other than SV_BROKEN_ON_BUILD. The build check warns at every real login on
--- a build other than MEASURED_ON_BUILD, deliberately unlatched.
+-- DEFAULTS - and says so once when one comes back carrying a build OTHER than
+-- the one running, which only a patched client can produce. The build check
+-- warns at every real login on a build other than MEASURED_ON_BUILD,
+-- deliberately unlatched.
 
 function Wildly_CheckClientBuild()
     settings:CheckBuild()
@@ -688,6 +700,5 @@ Wildly._testConfig = {
     DurationStore      = DurationStore,
     IsDruid            = IsDruid,
     MEASURED_ON_BUILD  = MEASURED_ON_BUILD,
-    SV_BROKEN_ON_BUILD = SV_BROKEN_ON_BUILD,
     eventFrame         = function() return cfgFrame end,
 }

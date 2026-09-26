@@ -23,13 +23,17 @@ local _, TC = H.loadAddon()
 -- all three agree. What no test can catch is all three being stale against
 -- the client; that takes .build.info or GetBuildInfo() on the real game.
 local MEASURED = "69977"
-local BROKEN = "69977"
-local FIXED = "70123"   -- any build other than the two above
+local BROKEN = "69977"   -- a test fixture now: "a build older than the one running"
+local FIXED = "70123"    -- any build other than the two above
 
 H.eq(TC.MEASURED_ON_BUILD, MEASURED,
     "the source says Wildly was measured on the build these tests measure it on")
-H.eq(TC.SV_BROKEN_ON_BUILD, BROKEN,
-    "and on the build where saved settings are known not to come back")
+-- No second constant since LibGroupBuffs r14: the library decides whether
+-- settings came back from the marker's own recorded build, so there is no
+-- host build number left to go stale - or to be bumped into announcing a fix
+-- that never happened, which is what it used to do.
+H.eq(TC.SV_BROKEN_ON_BUILD, nil,
+    "and carries no build constant for the settings check, which r14 decides itself")
 WoW.reset()
 H.eq(WoW.build, MEASURED,
     "and the stub's default session runs on that build, so every other test does too")
@@ -226,19 +230,26 @@ local marker = WildlyDB.svLoadCheck
 Wildly_HandleEnteringWorld(false, false)
 H.check(WildlyDB.svLoadCheck == marker, "a zone change leaves the marker alone")
 
--- The fix: a new build, and the marker came back on a real login.
+-- The fix, and what proves it: the marker comes back carrying a DIFFERENT
+-- build from the one running. Only a patched client can produce that, and
+-- patching requires a full exit - so r14 states it instead of hedging.
 WoW.build = FIXED
 before = #WoW.messages
 Wildly_HandleEnteringWorld(true, false)
 local msg = said(before)
 H.check(msg:find("came back", 1, true), "a real login on a new build announces it: " .. msg)
-H.check(msg:find("fully exited", 1, true), "conditional on a full exit: " .. msg)
-H.check(msg:find("proves nothing", 1, true), "and says a relog or /reload proves nothing: " .. msg)
+H.check(msg:find(BROKEN, 1, true) and msg:find(FIXED, 1, true),
+    "naming the build it was saved on and the one it was read on: " .. msg)
+H.check(msg:find("fully restarted", 1, true),
+    "and why that settles it - the game restarted in between: " .. msg)
+H.check(msg:find("is fixed", 1, true), "so it says so plainly: " .. msg)
 H.check(msg:find("per-character", 1, true) and msg:find("account-wide", 1, true),
     "naming the scopes that came back: " .. msg)
-H.check(msg:find(FIXED, 1, true), "and the build: " .. msg)
+H.check(not msg:find("proves nothing", 1, true),
+    "with the old hedge gone, because a relog cannot produce this: " .. msg)
 
--- Once only: the latch persists by then, because the store works.
+-- Once: the marker is rewritten with the build running now, so every later
+-- login this session reads its own build back and has nothing to report.
 before = #WoW.messages
 Wildly_HandleEnteringWorld(true, false)
 H.check(not said(before):find("came back", 1, true), "it does not repeat at the next login")
@@ -246,7 +257,9 @@ H.check(not said(before):find("came back", 1, true), "it does not repeat at the 
 -- Account-wide fixed on its own is worth knowing: it is where settings would
 -- move back to.
 freshSession(FIXED)
-WildlySVCheck = { svLoadCheck = { stamp = "then", build = FIXED } }
+-- An OLDER build in the marker: one stamped with the build already running is
+-- what a relog looks like, and r14 says nothing to that, on purpose.
+WildlySVCheck = { svLoadCheck = { stamp = "then", build = BROKEN } }
 before = #WoW.messages
 Wildly_HandleEnteringWorld(true, false)
 msg = said(before)
