@@ -4,14 +4,18 @@
 
 ### Under the hood
 - **Wildly now asks the shared LibGroupBuffs library whether it loaded properly,** instead of
-  checking the library's internals itself, and needs version r12 of it (included in the download).
+  checking the library's internals itself, and needs version r14 of it (included in the download).
   Nothing should look different to you. If Wildly ever says in chat that it *cannot start*,
   reinstalling Wildly still fixes it.
 
 ### Fixed
-- **No more "tested on another game build" notice at every login** on the current client
-  (1.60.1.69977), and no false "your saved settings came back" after returning from character
-  select. Wildly had been checked against the previous build number.
+- **No more "tested on another game build" notice at every login** on game build 1.60.1.69977,
+  and no false "your saved settings came back" after returning from character select. Wildly had
+  been checked against the previous build number.
+- **Saved settings work on game build 70009,** which fixed the client bug that reset every addon's
+  settings. Wildly tells you so once, after the first full restart on the new build, and no longer
+  claims a fix after only a relog to character select. (On 70009 you will still see the "tested
+  on another game build" notice until Wildly is checked against it.)
 
 ## v1.0.0 - 2026-09-24
 
