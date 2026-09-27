@@ -83,8 +83,10 @@ catch up:
   real duration from your own buffs rather than assuming one, and forgets what it learned whenever
   the client build changes.
 * **Settings reset at every login before game build 70009.** That was a client bug affecting every
-  addon: Forever wrote addon settings to disk and never read them back. Build 70009 fixed it, and
-  Wildly says so in chat the first time your settings come back after the update.
+  addon: Forever wrote addon settings to disk and never read them back. Build 70009 fixed it. If
+  you played through that patch, Wildly says so in chat once it sees your settings survive it — it
+  can only tell by watching them come back across a game update, so a fresh install on an
+  already-fixed build simply works and says nothing.
 
 ---
 
