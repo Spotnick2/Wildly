@@ -82,11 +82,9 @@ catch up:
 * **Buff durations differ from both TBC and Vanilla** and are still being tuned. Wildly learns the
   real duration from your own buffs rather than assuming one, and forgets what it learned whenever
   the client build changes.
-* **Your settings reset every time you reload.** This is a client bug and it affects every addon:
-  Forever writes addon settings to disk correctly and then never reads them back at login. So the
-  window position, the lock and every option start fresh each session. No addon can work around
-  it. It waits on Blizzard's fix, which has been reported, and Wildly says so in chat once a game
-  update fixes it.
+* **Settings reset at every login before game build 70009.** That was a client bug affecting every
+  addon: Forever wrote addon settings to disk and never read them back. Build 70009 fixed it, and
+  Wildly says so in chat the first time your settings come back after the update.
 
 ---
 

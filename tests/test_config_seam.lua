@@ -2,9 +2,9 @@
 -- test_config_seam.lua - one write path for WildlyDB, and the two checks
 -- that watch for the client being fixed or updated.
 --
--- Nothing an addon writes survives a real restart on this build. Until
--- Blizzard fixes it, every settings change goes through Wildly_SetConfig so
--- the fix - or the migration it needs - lands in one place.
+-- Through build 69977 nothing an addon wrote survived a real restart; 70009
+-- fixed it. Every settings change still goes through Wildly_SetConfig, so a
+-- migration - or a regression's workaround - lands in one place.
 --
 --   & 'C:\Program Files (x86)\Lua\5.1\lua.exe' tests\test_config_seam.lua
 ------------------------------------------------------------

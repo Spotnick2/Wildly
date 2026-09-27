@@ -144,7 +144,7 @@ Current `WildlyDB` keys: `trackMark`, `thornsMode`, `showSolo`, `trackPets`, `fr
 `popoverSide`, `lockFrame`, `showClickHints` (all in `DEFAULTS`), `learnedDurations` (keyed by
 **spell name**, reset when the client build changes), `visible` and `pos` (the window's own state,
 never defaulted), and `svLoadCheck` (never in `DEFAULTS`). There is no TBC migration: this is a
-separate install, and nothing loads back on this client anyway.
+separate install with its own `WTF` folder, so a TBC `WildlyDB` never reaches this client.
 
 ### Buff definitions
 
@@ -228,10 +228,13 @@ and Mangle are TBC spells.
 `WildlyDB` is **per character**; `WildlySVCheck` is account-wide and holds only the library's
 `svLoadCheck` marker, so the addon can tell when account-wide storage is fixed. Same as Priestly.
 
-**NO SavedVariables load back on this client — per-character included** (measured on build
-1.60.1.69913, still true on 69977, the installed build - shared notes,
-`PORTING-TBC-TO-FOREVER.md` section 0; see Priestly's `AGENTS.md` and `docs/FOREVER-PROBE.md` section 11). Every session
-starts from defaults. Write the addon so losing every setting at login is survivable.
+**SavedVariables load back on 1.60.1.70009, the installed build — and did not on 69913 or
+69977.** Through 69977 nothing loaded back, per-character included (Priestly's `AGENTS.md` and
+`docs/FOREVER-PROBE.md` section 11). 70009 fixed it, measured by two addons on two accounts across a
+full exit (shared notes, `PORTING-TBC-TO-FOREVER.md` section 0). CVars have not been re-measured on
+70009. Wildly itself has not been re-probed there (`MEASURED_ON_BUILD` stays 69977 until it is), so
+treat persistence as working but keep the addon survivable if a later patch breaks it again: the
+library's `svLoadCheck` marker is what catches a regression.
 
 - **Never verify persistence by reading the SV file or diffing it against `.bak`.** It always
   looks populated because `EnsureDefaults` rewrites every default each session. Count launches
