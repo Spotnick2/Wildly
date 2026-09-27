@@ -13,14 +13,16 @@ dofile("tests/wow_stubs.lua")
 local H = dofile("tests/harness.lua")
 local _, TC = H.loadAddon()
 
--- Pinned here as LITERALS, not read from the source. Every check below takes
--- its builds from the constants, so a stale constant satisfies all of them
--- while the addon warns at every real login on the build people are actually
--- running - and, worse, treats that build as one where saved settings work,
--- so a relog to character select can announce a fix that never happened.
--- Moving the client forward is a three-file edit - WildlyConfig.lua, this
--- file, and the stub's default WoW.build - and the checks below fail until
--- all three agree. What no test can catch is all three being stale against
+-- Pinned here as LITERALS, not read from the source: the checks below take
+-- their build from the constant, so a stale constant would satisfy all of
+-- them while the addon warned at every real login on the build people are
+-- actually running. Moving the client forward is a three-file edit -
+-- WildlyConfig.lua, this file, and the stub's default WoW.build - and the
+-- checks below fail until all three agree.
+--
+-- BROKEN is no longer a constant the addon declares. Since LibGroupBuffs r14
+-- the settings check reads the marker's own recorded build rather than a
+-- build the host names, so nothing below depends on WHICH build BROKEN is. What no test can catch is all three being stale against
 -- the client; that takes .build.info or GetBuildInfo() on the real game.
 local MEASURED = "69977"
 local BROKEN = "69977"   -- a test fixture now: "a build older than the one running"
