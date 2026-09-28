@@ -191,6 +191,43 @@ settle()
 H.check(not shown(), "a roster that arrives just after login does not undo a close")
 
 ------------------------------------------------------------
+-- Logging in alone and THEN being invited still reopens the window
+--
+-- The regression the roster guard nearly shipped. "Have we ever seen the
+-- roster?" answers the login catch-up correctly, but on its own it costs the
+-- thing it was protecting: log in alone, get invited, and if the client sent
+-- no zero-member roster in between, the invite IS the first observation - so
+-- it would not count as joining, and the window would stay shut for the rest
+-- of the session.
+--
+-- There is deliberately NO zero-member roster update here. That is the whole
+-- point: a test that sent one would pass without GROUP_JOINED.
+------------------------------------------------------------
+
+setup(0)
+WildlyDB.visible = false
+WoW.dispatch("PLAYER_LOGIN")
+settle()
+H.check(not shown(), "logging in alone with the window closed leaves it closed")
+
+WoW.groupMembers = 3
+WoW.dispatch("GROUP_JOINED")
+WoW.dispatch("GROUP_ROSTER_UPDATE")
+settle()
+H.check(shown(), "and an invite after it reopens the window")
+H.eq(WildlyDB.visible, true, "and is remembered as the player's preference")
+
+-- The event is not sent for a catch-up roster, so that is still not a join.
+setup(0)
+WildlyDB.visible = false
+WoW.dispatch("PLAYER_LOGIN")
+settle()
+WoW.groupMembers = 5
+WoW.dispatch("GROUP_ROSTER_UPDATE")
+settle()
+H.eq(WildlyDB.visible, false, "a roster catching up without a join event is still not a join")
+
+------------------------------------------------------------
 -- The two ways a few seconds' grace still got this wrong
 --
 -- This guard was a five-second window after PLAYER_LOGIN until

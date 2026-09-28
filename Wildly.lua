@@ -236,6 +236,18 @@ local g_IsDruid = false
 -- replaced. "Have we ever seen the roster?" needs no clock.
 local g_LastGroupSize = nil
 
+-- On its own that costs the thing it protects: log in alone, get invited, and
+-- if the client never sent a zero-member roster in between, the invite IS the
+-- first observation and would not count as joining. So the roster is the
+-- FALLBACK and GROUP_JOINED is the answer - the client saying you joined
+-- rather than us inferring it from a number changing.
+--
+-- Set by the event, spent by the roster update that follows it. Declared on
+-- 70009 (Event.PartyInfo.GroupJoined), and declared is not working on this
+-- client, so it makes the answer certain where it fires and changes nothing
+-- where it does not.
+local g_JoinedPending = false
+
 -- Would the window open by itself right now? In a group, or solo mode - and
 -- never over a deliberate close.
 local function WantsOpen()
@@ -432,6 +444,10 @@ Wildly.RegisterEvents(evtFrame,
     "UNIT_PET",
     "RAID_ROSTER_UPDATE",
     "GROUP_ROSTER_UPDATE",
+    -- The client saying you JOINED, rather than us inferring it from the
+    -- roster changing. Declared on 70009; declared is not working, so the
+    -- roster heuristic stays as the fallback.
+    "GROUP_JOINED",
     "PLAYER_TALENT_UPDATE",
     "ACTIVE_TALENT_GROUP_CHANGED",
     "PLAYER_REGEN_ENABLED",
@@ -466,6 +482,7 @@ evtFrame:SetScript("OnEvent", function(self, event, arg1, arg2)
         -- re-executed, because that is what makes the rule true rather than
         -- incidentally true.
         g_LastGroupSize = nil
+        g_JoinedPending = false
         -- The size is deliberately NOT recorded here: WantsOpen asks the
         -- client directly, and a 0 here may only mean the roster has not
         -- arrived. Recording it is what made the arrival look like a join.
@@ -500,6 +517,13 @@ evtFrame:SetScript("OnEvent", function(self, event, arg1, arg2)
             ui:Open(0.3)   -- a tank appearing can give a closed-for-want-of-rows window its row
         end
 
+    elseif event == "GROUP_JOINED" then
+        -- The client saying it, rather than us inferring it. Latched rather
+        -- than acted on here: the roster that follows knows how many people
+        -- there are, and acting twice would open the window and then decide
+        -- again whether it should be open.
+        g_JoinedPending = true
+
     elseif event == "RAID_ROSTER_UPDATE" or event == "GROUP_ROSTER_UPDATE" then
         -- Unit tokens are reassigned, and the main tank may have changed.
         ForgetTanks()
@@ -508,9 +532,13 @@ evtFrame:SetScript("OnEvent", function(self, event, arg1, arg2)
         -- Joining a group is the one case that reopens a window the user
         -- closed: that is the addon's advertised behaviour. Any other roster
         -- churn leaves a deliberate close alone.
-        -- nil is not 0: the first roster we ever see tells us where we are,
-        -- it does not tell us somebody just invited us.
-        local joined = (g_LastGroupSize == 0 and n > 0)
+        -- GROUP_JOINED if the client sent one, and otherwise the roster: nil
+        -- is not 0, so the first roster we ever see tells us where we are and
+        -- not that somebody just invited us. The event is what makes logging
+        -- in alone and then being invited work, because there may be no
+        -- zero-member roster in between for the fallback to measure against.
+        local joined = g_JoinedPending or (g_LastGroupSize == 0 and n > 0)
+        g_JoinedPending = false
         g_LastGroupSize = n
         if joined then SetConfig("visible", true) end
         if n > 0 and not ui:IsVisible()
