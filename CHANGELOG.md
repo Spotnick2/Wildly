@@ -3,14 +3,24 @@
 ## Unreleased
 
 ### Changed
-- **A new look.** The window is drawn in glass now: a translucent, softly lit panel with rounded
-  corners instead of the flat Blizzard dialog box, and every buff bar filled the same way. Nothing
-  moved and nothing changed how it works — same rows, same clicks, same colours telling you who is
-  missing what.
+- **A new look.** The window is drawn in glass: a translucent, softly lit panel with rounded
+  corners instead of the flat Blizzard dialog box, and every buff bar filled the same way.
+- **It is easier to read at a glance.** The rows are taller and the spell icons bigger, each one
+  in a rounded tile of its own, and the text is a cleaner typeface with a shadow behind it so it
+  stays legible wherever the window sits. Group separators are centred across the window rather
+  than tucked against one edge, and the close button matches the rest of it instead of being
+  Blizzard's gold disc.
+- **The window is a little wider and taller** because of that. If you keep it tucked against
+  something, you may want to nudge it once; where you put it is remembered as always.
+- **Tooltips no longer land on top of the window** they are describing, and are drawn slightly
+  smaller so they suit it.
+
+  Nothing about how it *works* has changed: same rows, same clicks, same colours telling you who
+  is missing what.
 
 ### Under the hood
 - **Wildly now asks the shared LibGroupBuffs library whether it loaded properly,** instead of
-  checking the library's internals itself, and needs version r14 of it (included in the download).
+  checking the library's internals itself, and needs version r19 of it (included in the download).
   Nothing should look different to you. If Wildly ever says in chat that it *cannot start*,
   reinstalling Wildly still fixes it.
 
