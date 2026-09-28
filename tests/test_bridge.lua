@@ -330,4 +330,44 @@ CreateFrame = realCreateFrame
 
 LibStub, Wildly = savedLibStub, savedWildly
 
+------------------------------------------------------------
+-- Every hook the source reads GUARDED is a global the stub allows
+--
+-- `if Wildly_ForceRebuild then` exists because WildlyConfig.lua can fail to
+-- load while Wildly.lua carries on. Under the strict-global stub a name not on
+-- the allow-list does not read as nil - it throws - so a guard whose name is
+-- missing can never be exercised, and the branch it protects is untested
+-- while looking covered. The list and the guards are checked against each
+-- other here rather than kept in step by hand.
+------------------------------------------------------------
+
+-- The source JOINED, not line by line, and every boolean position - not
+-- just `if X` and `X and`. The first version of this scan matched only those
+-- two forms on single lines, and missed both
+-- `not Wildly_ShowClickHints or Wildly_ShowClickHints()` and a guard whose
+-- `and` sits on the next line. A check that half-covers the thing it claims
+-- to make impossible is worse than none, because AGENTS.md and the README
+-- now both say the drift cannot happen.
+local guarded = {}
+for file, lines in pairs(SOURCES) do
+    local joined = table.concat(lines, " ")
+    local function find(pattern)
+        for name in joined:gmatch(pattern) do guarded[name] = file end
+    end
+    find("[^%w_](Wildly_[%a_][%w_]*)%s+and[%s(]")
+    find("[^%w_](Wildly_[%a_][%w_]*)%s+or[%s(]")
+    find("[^%w_](Wildly_[%a_][%w_]*)%s+then[%s(]")
+    find("%f[%w_]not%s+(Wildly_[%a_][%w_]*)")
+    find("%f[%w_]if%s+(Wildly_[%a_][%w_]*)")
+    find("%f[%w_]elseif%s+(Wildly_[%a_][%w_]*)")
+end
+local nGuarded = 0
+for name, file in pairs(guarded) do
+    nGuarded = nGuarded + 1
+    H.check(WoW.hostGlobals[name],
+        file .. " reads " .. name .. " guarded, so tests/wow_stubs.lua must allow it as nil")
+end
+H.check(nGuarded >= 2,
+    "and the scan found the guards rather than nothing: " .. nGuarded)
+
 H.done("test_bridge")

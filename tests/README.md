@@ -29,8 +29,12 @@ or the sibling checkout. There is no vendored copy to fall back to, on purpose.
 
 ## How it works
 
-- **`wow_stubs.lua`** — a minimal WoW: Forever API mock, copied from LibGroupBuffs' own stub (every
-  difference marked `Wildly:`):
+- **`wow_stubs.lua`** — Wildly's thin layer over the **shared** stub in
+  `../LibGroupBuffs/tests/wow_stubs.lua`. The client surface lives there, one
+  copy for Priestly, Wildly and Magely, so every absence and refusal measured
+  on this client is measured once. What stays local is this addon's own: its
+  default class and the globals it owns. **Add a new global here; look for an
+  API's stub in the library.** The shared stub gives you
   frames that record secure attributes and refuse protected calls in combat, a `C_Timer` that
   collects callbacks, `C_UnitAuras` with a secrecy switch, known spells, and units with GUIDs and
   surnames. Drive it through the global `WoW` table. `dofile("tests/wow_stubs.lua")` **first** in
@@ -61,7 +65,14 @@ or the sibling checkout. There is no vendored copy to fall back to, on purpose.
 
 ## The stub is an allowlist, and it must model absences
 
-`wow_stubs.lua` fails the run on the read of any global it does not define, so it is the list of
-APIs verified present on this client. Never add a global because a test failed: confirm it in the
+The shared stub fails the run on the read of any global it does not define, so it is the list of
+APIs verified present on this client. This addon's own globals are added on top with
+`WoW.allowGlobal`, in the local layer.
+
+Anything the addon reads **guarded** — `if Wildly_OpenConfig then`, which exists because
+`WildlyConfig.lua` can fail to load while `Wildly.lua` carries on — has to be allowed as nil there,
+or the guard throws inside the stub and the branch it protects can never be tested.
+`tests/test_bridge.lua` scans the source for those guards and checks them against the list, so the
+two cannot drift. Never add a global because a test failed: confirm it in the
 build-matched API dump (`C:/Projects/References/forever-api-<build>.md`) and stub it with the
 client's exact signature, or list it as known-absent and make the addon cope.
