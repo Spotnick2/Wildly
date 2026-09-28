@@ -20,7 +20,7 @@ Wildly = Wildly or {}
 -- addon colour the popover's divider, which Wildly draws orange; r12 answers
 -- for itself whether a copy is usable, which is what lib.Status below is.
 -- Keep this equal to the tag .pkgmeta pins; tests/test_manifest.lua checks that.
-local NEEDS_MINOR = 15
+local NEEDS_MINOR = 18
 
 -- Is this copy usable? The library answers, from its own list of files, so
 -- the marker names and entry points are no longer Wildly's business - this
