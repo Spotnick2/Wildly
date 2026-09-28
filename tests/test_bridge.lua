@@ -341,12 +341,25 @@ LibStub, Wildly = savedLibStub, savedWildly
 -- other here rather than kept in step by hand.
 ------------------------------------------------------------
 
+-- The source JOINED, not line by line, and every boolean position - not
+-- just `if X` and `X and`. The first version of this scan matched only those
+-- two forms on single lines, and missed both
+-- `not Wildly_ShowClickHints or Wildly_ShowClickHints()` and a guard whose
+-- `and` sits on the next line. A check that half-covers the thing it claims
+-- to make impossible is worse than none, because AGENTS.md and the README
+-- now both say the drift cannot happen.
 local guarded = {}
 for file, lines in pairs(SOURCES) do
-    for _, code in ipairs(lines) do
-        for name in code:gmatch("if%s+(Wildly_[%a_][%w_]*)%s+") do guarded[name] = file end
-        for name in code:gmatch("(Wildly_[%a_][%w_]*)%s+and%s+") do guarded[name] = file end
+    local joined = table.concat(lines, " ")
+    local function find(pattern)
+        for name in joined:gmatch(pattern) do guarded[name] = file end
     end
+    find("[^%w_](Wildly_[%a_][%w_]*)%s+and[%s(]")
+    find("[^%w_](Wildly_[%a_][%w_]*)%s+or[%s(]")
+    find("[^%w_](Wildly_[%a_][%w_]*)%s+then[%s(]")
+    find("%f[%w_]not%s+(Wildly_[%a_][%w_]*)")
+    find("%f[%w_]if%s+(Wildly_[%a_][%w_]*)")
+    find("%f[%w_]elseif%s+(Wildly_[%a_][%w_]*)")
 end
 local nGuarded = 0
 for name, file in pairs(guarded) do

@@ -59,5 +59,6 @@ WoW.allowGlobal(
     -- on its own must be able to read them as nil.
     "Wildly_ForceRebuild", "Wildly_ApplyAlpha", "Wildly_OnSoloToggle",
     "Wildly_OpenConfig", "Wildly_SetConfig", "Wildly_GetFrameAlpha",
-    "Wildly_IsBuffEnabled", "Wildly_FrameLocked", "Wildly_PopoverSide"
+    "Wildly_IsBuffEnabled", "Wildly_FrameLocked", "Wildly_PopoverSide",
+    "Wildly_ShowClickHints", "Wildly_ShowSolo"
 )
