@@ -295,7 +295,11 @@ local GIFT_REAGENTS = {
 -- only RefreshDerived calls it.
 local function FindGiftRank()
     if not MARK.hasGroup then return 0 end
-    return API.GetSpellRank(MARK.grp)
+    -- Parenthesised: GetSpellRank also returns HOW it read the rank, and a
+    -- bare tail call would pass that second value on to a caller expecting
+    -- one. nil means the client described the rank in a way we could not
+    -- read (LibGroupBuffs#64).
+    return (API.GetSpellRank(MARK.grp))
 end
 
 local function GetGiftRank() return g_GiftRank or 0 end
