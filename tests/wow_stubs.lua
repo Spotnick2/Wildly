@@ -39,11 +39,25 @@ WoW.SetPlayerDefaults({ name = "Wildly Testcase", class = "DRUID", level = 20 })
 -- typo or an API that quietly went away. These are Wildly's own.
 ------------------------------------------------------------
 
+-- Recorded as well as allowed, so tests/test_bridge.lua can check this list
+-- against the guards in the source. Every `if Wildly_X then` in the addon is
+-- there because the config file can fail to load; a name missing from here
+-- turns that guard into a stub error, and the branch it guards can never be
+-- tested.
+WoW.hostGlobals = {}
+local sharedAllow = WoW.allowGlobal
+function WoW.allowGlobal(...)
+    for i = 1, select("#", ...) do WoW.hostGlobals[(select(i, ...))] = true end
+    return sharedAllow(...)
+end
+
 WoW.allowGlobal(
     -- The addon and its saved tables.
     "Wildly", "WildlyDB", "WildlySVCheck",
     -- The hooks Wildly.lua defines for the config, which the config looks up
     -- guarded (`if Wildly_ForceRebuild then`), so a test that loads the config
     -- on its own must be able to read them as nil.
-    "Wildly_ForceRebuild", "Wildly_ApplyAlpha", "Wildly_OnSoloToggle"
+    "Wildly_ForceRebuild", "Wildly_ApplyAlpha", "Wildly_OnSoloToggle",
+    "Wildly_OpenConfig", "Wildly_SetConfig", "Wildly_GetFrameAlpha",
+    "Wildly_IsBuffEnabled", "Wildly_FrameLocked", "Wildly_PopoverSide"
 )

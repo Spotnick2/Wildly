@@ -2,9 +2,11 @@
 -- test_stub.lua - the stub's own shapes, where Wildly depends on them.
 --
 -- The stub is the list of APIs the tests trust, so a stub that answers
--- differently from the client lets broken code pass. These pin the entries
--- Wildly added to the library's copy (marked "Wildly:" in wow_stubs.lua) to
--- the client's declared or observed shape.
+-- differently from the client lets broken code pass. The stub itself is the
+-- library's now (../LibGroupBuffs/tests/wow_stubs.lua), which makes these a
+-- contract rather than a self-check: the shapes Wildly depends on, pinned to the
+-- client's declared or observed behaviour, so a change over there that would
+-- break this addon fails here rather than in game.
 --
 --   & 'C:\Program Files (x86)\Lua\5.1\lua.exe' tests\test_stub.lua
 ------------------------------------------------------------

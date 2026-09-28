@@ -313,9 +313,16 @@ pwsh tests\run.ps1        # luac -p + all unit tests; needs ../LibGroupBuffs and
 The first line names the library checkout and revision the tests ran against, next to the tag a
 release would ship. They differ while working on both; they must match before a release.
 
-`tests/wow_stubs.lua` is an **allowlist**: reading any global it does not define fails the run. It
-started as a copy of LibGroupBuffs' stub, and every difference is marked `Wildly:` so a library
-fix can be carried over; `tests/test_stub.lua` pins those differences. Before stubbing a new global, confirm it exists in the
+**The stub is shared.** The client surface lives in `../LibGroupBuffs/tests/wow_stubs.lua`, one
+copy for Priestly, Wildly and Magely (LibGroupBuffs#21) — it was a copy here until the glass
+material needed mask, slice and status-bar methods in all three at once, which is the drift a copy
+was always going to cause. `tests/wow_stubs.lua` is now a thin layer holding only what is this
+addon's: its default class and its own globals. A new *API* stub goes in the library, where all
+three get it; a new *global* goes in the layer. Anything the source reads guarded
+(`if Wildly_OpenConfig then`) must be allowed as nil, or the guard throws inside the stub instead
+of exercising the branch it protects — `tests/test_bridge.lua` checks the guards against the list.
+
+The stub is an **allowlist**: reading any global it does not define fails the run. Before stubbing a new global, confirm it exists in the
 newest `C:/Projects/References/forever-api-<build>.md` and stub it with the client's exact
 signature; never add one because a test failed. Strict globals do not cover **methods** — for
 anything built on a widget method, execute it and assert what it produced.

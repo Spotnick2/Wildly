@@ -330,4 +330,31 @@ CreateFrame = realCreateFrame
 
 LibStub, Wildly = savedLibStub, savedWildly
 
+------------------------------------------------------------
+-- Every hook the source reads GUARDED is a global the stub allows
+--
+-- `if Wildly_ForceRebuild then` exists because WildlyConfig.lua can fail to
+-- load while Wildly.lua carries on. Under the strict-global stub a name not on
+-- the allow-list does not read as nil - it throws - so a guard whose name is
+-- missing can never be exercised, and the branch it protects is untested
+-- while looking covered. The list and the guards are checked against each
+-- other here rather than kept in step by hand.
+------------------------------------------------------------
+
+local guarded = {}
+for file, lines in pairs(SOURCES) do
+    for _, code in ipairs(lines) do
+        for name in code:gmatch("if%s+(Wildly_[%a_][%w_]*)%s+") do guarded[name] = file end
+        for name in code:gmatch("(Wildly_[%a_][%w_]*)%s+and%s+") do guarded[name] = file end
+    end
+end
+local nGuarded = 0
+for name, file in pairs(guarded) do
+    nGuarded = nGuarded + 1
+    H.check(WoW.hostGlobals[name],
+        file .. " reads " .. name .. " guarded, so tests/wow_stubs.lua must allow it as nil")
+end
+H.check(nGuarded >= 2,
+    "and the scan found the guards rather than nothing: " .. nGuarded)
+
 H.done("test_bridge")

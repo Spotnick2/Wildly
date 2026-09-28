@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Changed
+- **A new look.** The window is drawn in glass now: a translucent, softly lit panel with rounded
+  corners instead of the flat Blizzard dialog box, and every buff bar filled the same way. Nothing
+  moved and nothing changed how it works — same rows, same clicks, same colours telling you who is
+  missing what.
+
 ### Under the hood
 - **Wildly now asks the shared LibGroupBuffs library whether it loaded properly,** instead of
   checking the library's internals itself, and needs version r14 of it (included in the download).
