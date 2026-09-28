@@ -1,6 +1,6 @@
 # Wildly Changelog
 
-## Unreleased
+## v1.0.1 - 2026-09-27
 
 ### Changed
 - **A new look.** The window is drawn in glass: a translucent, softly lit panel with rounded
@@ -25,13 +25,13 @@
   reinstalling Wildly still fixes it.
 
 ### Fixed
-- **No more "tested on another game build" notice at every login** on game build 1.60.1.69977,
-  and no false "your saved settings came back" after returning from character select. Wildly had
-  been checked against the previous build number.
+- **No more "tested on another game build" notice at every login.** Wildly had been checked
+  against an older build number than the one you are playing on; it has now been checked against
+  1.60.1.70009, the current one, so the notice is quiet again.
+- **No false "your saved settings came back"** after returning from character select.
 - **Saved settings work on game build 70009,** which fixed the client bug that reset every addon's
   settings. Wildly tells you so once, after the first full restart on the new build, and no longer
-  claims a fix after only a relog to character select. (On 70009 you will still see the "tested
-  on another game build" notice until Wildly is checked against it.)
+  claims a fix after only a relog to character select.
 
 ## v1.0.0 - 2026-09-24
 

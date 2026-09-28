@@ -24,7 +24,7 @@ local _, TC = H.loadAddon()
 -- the settings check reads the marker's own recorded build rather than a
 -- build the host names, so nothing below depends on WHICH build BROKEN is. What no test can catch is all three being stale against
 -- the client; that takes .build.info or GetBuildInfo() on the real game.
-local MEASURED = "69977"
+local MEASURED = "70009"
 local BROKEN = "69977"   -- a test fixture now: "a build older than the one running"
 local CLIENT = "70009"  -- what .build.info reports; the shared stub models it
 local FIXED = "70123"    -- any build other than the two above
@@ -40,7 +40,9 @@ H.eq(TC.SV_BROKEN_ON_BUILD, nil,
 -- The stub models the CLIENT, not whichever build Wildly last re-probed:
 -- it is shared with two other addons that re-probe at different times, and it
 -- is the default every other test file runs under, so it should show them
--- what a player sees - including, while MEASURED lags, a login notice.
+-- what a player sees. MEASURED and CLIENT agree today - Wildly was checked
+-- in game on 70009 - so the login notice is silent; they part again the
+-- moment the client patches.
 WoW.reset()
 H.eq(WoW.build, CLIENT,
     "and the stub's default session runs on the CLIENT's build, not the measured one")
@@ -202,9 +204,24 @@ H.eq(TC.DEFAULTS.svLoadCheck, nil,
     "svLoadCheck is NOT in DEFAULTS - if it were, EnsureDefaults would recreate it " ..
     "every session and the check could never tell a real load from a fresh start")
 
+-- Everything said, for the sections that are ABOUT the build notice.
 local function said(fromIndex)
     if #WoW.messages <= fromIndex then return "" end
     return table.concat(WoW.messages, " | ", fromIndex + 1, #WoW.messages)
+end
+
+-- What was said about SETTINGS. The build notice is filtered out: it is a
+-- different check with its own tests, and these sections run sessions on
+-- older builds on purpose, so once MEASURED moved to 70009 every one of them
+-- would otherwise read that notice as a settings announcement.
+local function saidSettings(fromIndex)
+    local out = {}
+    for i = fromIndex + 1, #WoW.messages do
+        if not WoW.messages[i]:find("tested on game build", 1, true) then
+            out[#out + 1] = WoW.messages[i]
+        end
+    end
+    return table.concat(out, " | ")
 end
 
 local function freshSession(build)
@@ -218,7 +235,7 @@ end
 freshSession(BROKEN)
 local before = #WoW.messages
 Wildly_HandleEnteringWorld(true, false)
-H.eq(said(before), "", "no marker at login, nothing announced - today's state")
+H.eq(saidSettings(before), "", "no marker at login, nothing announced - today's state")
 H.check(type(WildlyDB.svLoadCheck) == "table", "the per-character marker is written")
 H.check(type(WildlySVCheck.svLoadCheck) == "table", "and the account-wide one")
 H.eq(WildlyDB.svLoadCheck.build, BROKEN, "with the build it was written on")
@@ -227,10 +244,10 @@ H.eq(WildlyDB.svLoadCheck.build, BROKEN, "with the build it was written on")
 -- being served from the client's cache. Neither may announce.
 before = #WoW.messages
 Wildly_HandleEnteringWorld(true, false)
-H.eq(said(before), "",
+H.eq(saidSettings(before), "",
     "on the broken build a returning marker is the client's cache, not a fix")
 Wildly_HandleEnteringWorld(false, true)
-H.eq(said(before), "", "and a /reload never announces")
+H.eq(saidSettings(before), "", "and a /reload never announces")
 
 -- A zone change is neither, and must not touch the marker.
 local marker = WildlyDB.svLoadCheck
@@ -243,7 +260,7 @@ H.check(WildlyDB.svLoadCheck == marker, "a zone change leaves the marker alone")
 WoW.build = FIXED
 before = #WoW.messages
 Wildly_HandleEnteringWorld(true, false)
-local msg = said(before)
+local msg = saidSettings(before)
 H.check(msg:find("came back", 1, true), "a real login on a new build announces it: " .. msg)
 H.check(msg:find(BROKEN, 1, true) and msg:find(FIXED, 1, true),
     "naming the build it was saved on and the one it was read on: " .. msg)
@@ -259,7 +276,7 @@ H.check(not msg:find("proves nothing", 1, true),
 -- login this session reads its own build back and has nothing to report.
 before = #WoW.messages
 Wildly_HandleEnteringWorld(true, false)
-H.check(not said(before):find("came back", 1, true), "it does not repeat at the next login")
+H.check(not saidSettings(before):find("came back", 1, true), "it does not repeat at the next login")
 
 -- Account-wide fixed on its own is worth knowing: it is where settings would
 -- move back to.
@@ -269,7 +286,7 @@ freshSession(FIXED)
 WildlySVCheck = { svLoadCheck = { stamp = "then", build = BROKEN } }
 before = #WoW.messages
 Wildly_HandleEnteringWorld(true, false)
-msg = said(before)
+msg = saidSettings(before)
 H.check(msg:find("account-wide", 1, true) and not msg:find("per-character", 1, true),
     "a fix to account-wide storage alone is reported as that: " .. msg)
 

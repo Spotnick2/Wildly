@@ -78,7 +78,7 @@ local DEFAULTS = {
 -- exit, so a marker returning under a different build cannot be the
 -- in-process cache a relog hands back. 70009 fixed loading for real, and that
 -- reads it correctly with nothing here to keep current.
-local MEASURED_ON_BUILD = "69977"
+local MEASURED_ON_BUILD = "70009"
 
 -- config-owner: begin
 -- The two saved tables, created on first use. WildlyDB holds the settings
