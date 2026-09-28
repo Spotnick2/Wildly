@@ -48,6 +48,23 @@ end
 local function afterLogin() WoW.time = WoW.time + 30 end
 
 ------------------------------------------------------------
+-- A roster arriving before PLAYER_LOGIN is discarded outright
+--
+-- Not by the "have we seen the roster?" guard, which is why this says so: the
+-- handler returns on `not g_Is<Class>` for every event except the login
+-- itself, and the class is not known until then. Priestly has no such gate and
+-- does need the guard for this path (Spotnick2/priestly#69), which is worth
+-- knowing before anyone "tidies" the difference away.
+------------------------------------------------------------
+
+setup(0)
+WildlyDB.visible = false
+WoW.groupMembers = 5
+WoW.dispatch("GROUP_ROSTER_UPDATE")
+settle()
+H.eq(WildlyDB.visible, false, "a roster before the class is known changes nothing")
+
+------------------------------------------------------------
 -- Login opens the window for a druid in a group
 ------------------------------------------------------------
 
@@ -172,6 +189,31 @@ WoW.groupMembers = 5
 WoW.dispatch("GROUP_ROSTER_UPDATE")
 settle()
 H.check(not shown(), "a roster that arrives just after login does not undo a close")
+
+------------------------------------------------------------
+-- The two ways a few seconds' grace still got this wrong
+--
+-- This guard was a five-second window after PLAYER_LOGIN until
+-- Spotnick2/priestly#69. That is a guess at the wrong question, and it had two
+-- holes: the events are registered at file scope, so a roster can arrive
+-- before PLAYER_LOGIN runs at all and the anchor is still 0; and the window is
+-- anchored before the world loads, so a slow load pushes the catch-up roster
+-- past it. Both fail silently and look exactly like the bug.
+------------------------------------------------------------
+
+-- A loading screen longer than any grace period would have been. The clock is
+-- not consulted at all now.
+setup(0)
+WildlyDB.visible = false
+WoW.dispatch("PLAYER_LOGIN")
+settle()
+WoW.time = WoW.time + 300
+WoW.groupMembers = 5
+WoW.dispatch("GROUP_ROSTER_UPDATE")
+settle()
+H.eq(WildlyDB.visible, false,
+    "however long the world takes to load, the first roster is not a join")
+H.check(not shown(), "and the window stays closed")
 H.eq(WildlyDB.visible, false, "and the preference stands")
 
 afterLogin()

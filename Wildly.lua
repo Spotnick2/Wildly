@@ -218,15 +218,23 @@ end
 
 -- ─── State ───────────────────────────────────────────────────────────────────
 local g_IsDruid = false
-local g_LastGroupSize = 0
-local g_LoginAt = 0
-
--- The roster can arrive a moment after PLAYER_LOGIN: GetNumGroupMembers() may
--- still read 0 at login inside a group. A 0-to-n change that soon is the
--- client catching up, not the player joining, and must not override a close.
--- Not measured on this client (AGENTS.md, in-game list); five seconds is a
--- guess on the safe side - a real invite that soon after login is rare.
-local ROSTER_SETTLE_SECONDS = 5
+-- How many people we have SEEN in the group, or nil for "we have not looked
+-- yet". The difference is the whole point: joining is the one thing that
+-- reopens a window the player deliberately closed, and a join is a 0-to-n
+-- change where the 0 was actually observed.
+--
+-- GetNumGroupMembers() can still read 0 at PLAYER_LOGIN while already in a
+-- group - the roster lands a moment later - so starting this at 0 made that
+-- catch-up look exactly like joining.
+--
+-- nil rather than a few seconds' grace, which is what this was until
+-- Spotnick2/priestly#69. The grace period is a guess at the wrong question: it
+-- has to outlast the slowest loading screen without swallowing a real invite,
+-- it is defeated entirely by a roster event arriving before PLAYER_LOGIN (the
+-- events are registered at file scope, and the anchor is still 0 then), and
+-- when it is wrong it fails silently and looks exactly like the bug it
+-- replaced. "Have we ever seen the roster?" needs no clock.
+local g_LastGroupSize = nil
 
 -- Would the window open by itself right now? In a group, or solo mode - and
 -- never over a deliberate close.
@@ -453,8 +461,14 @@ evtFrame:SetScript("OnEvent", function(self, event, arg1, arg2)
         -- Auto-open in a group (or solo mode) - unless the window was
         -- deliberately closed, which is a preference that should survive a
         -- reload.
-        g_LastGroupSize = GetNumGroupMembers()
-        g_LoginAt = GetTime()
+        -- A new session: whatever we saw before this login is not something
+        -- we have seen in it. Said out loud rather than left to the file being
+        -- re-executed, because that is what makes the rule true rather than
+        -- incidentally true.
+        g_LastGroupSize = nil
+        -- The size is deliberately NOT recorded here: WantsOpen asks the
+        -- client directly, and a 0 here may only mean the roster has not
+        -- arrived. Recording it is what made the arrival look like a join.
         if WantsOpen() then ui:Open(0.6) end
 
         DEFAULT_CHAT_FRAME:AddMessage(
@@ -494,8 +508,9 @@ evtFrame:SetScript("OnEvent", function(self, event, arg1, arg2)
         -- Joining a group is the one case that reopens a window the user
         -- closed: that is the addon's advertised behaviour. Any other roster
         -- churn leaves a deliberate close alone.
-        local settling = (GetTime() - g_LoginAt) < ROSTER_SETTLE_SECONDS
-        local joined = (g_LastGroupSize == 0 and n > 0) and not settling
+        -- nil is not 0: the first roster we ever see tells us where we are,
+        -- it does not tell us somebody just invited us.
+        local joined = (g_LastGroupSize == 0 and n > 0)
         g_LastGroupSize = n
         if joined then SetConfig("visible", true) end
         if n > 0 and not ui:IsVisible()
