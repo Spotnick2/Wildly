@@ -1,6 +1,6 @@
 # Wildly Changelog
 
-## Unreleased
+## v1.0.2 - 2026-09-29
 
 ### Fixed
 - **The window comes back when it has something to show again.** If it had closed itself because
