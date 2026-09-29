@@ -20,7 +20,7 @@ Wildly = Wildly or {}
 -- addon colour the popover's divider, which Wildly draws orange; r12 answers
 -- for itself whether a copy is usable, which is what lib.Status below is.
 -- Keep this equal to the tag .pkgmeta pins; tests/test_manifest.lua checks that.
-local NEEDS_MINOR = 21
+local NEEDS_MINOR = 24
 
 -- Is this copy usable? The library answers, from its own list of files, so
 -- the marker names and entry points are no longer Wildly's business - this
@@ -88,6 +88,10 @@ Wildly.Settings = lib.Settings
 Wildly.Engine = lib.Engine
 -- The buff window; Wildly.lua builds Wildly's from it.
 Wildly.UI = lib.UI
+-- When that window opens itself and when it must not. Wildly still owns its
+-- events and its slash commands; this decides what each of them means for the
+-- window, in one place instead of three (LibGroupBuffs#22).
+Wildly.Visibility = lib.Visibility
 
 -- Wildly's own record of the events this client rejected, for
 -- `/dump Wildly.eventFailures`. The library also keeps it, as
