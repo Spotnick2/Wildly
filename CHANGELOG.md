@@ -1,5 +1,28 @@
 # Wildly Changelog
 
+## Unreleased
+
+### Fixed
+- **The window comes back when it has something to show again.** If it had closed itself because
+  there was nothing to display — no tank in the group for Thorns, every buff untracked, or the
+  spells not learned yet — then a tank appearing, or learning a spell, or respeccing, left it
+  shut until something else woke it.
+- **Being invited reopens a window you had closed** — but a roster arriving in the moments after
+  you log in no longer counts as an invitation. That was decided on a five-second timer from
+  login, which could be wrong in both directions: a roster update can arrive before the timer is
+  even set, and a slow world load can push a perfectly ordinary catch-up past five seconds. It
+  asks whether it has seen the roster yet instead.
+
+### Under the hood
+- **Wildly now shares one copy of the rules for when the window opens** with Priestly and Magely,
+  instead of each addon carrying its own. Both fixes above are cases where those copies had
+  drifted apart: found in one addon, fixed there, and left standing in the other two.
+- **Much less work per refresh in a raid.** Checking whether somebody is missing a buff means
+  reading their auras, and that was happening once per buff per person. Each person is now read
+  once and every buff answered from that. Nothing looks different; there is simply less of it
+  happening forty times a minute.
+- Needs LibGroupBuffs r25, included in the download.
+
 ## v1.0.1 - 2026-09-27
 
 ### Changed
