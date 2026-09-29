@@ -119,12 +119,19 @@ Load order from `Wildly.toc`:
 
 `Wildly.lua` exposes, for the config: `Wildly_ScheduleRefresh`, `Wildly_ForceRebuild` (does
 nothing in combat; the library rebuilds a visible window at combat end), `Wildly_OnSoloToggle`,
-`Wildly_ApplyAlpha`. It decides when the window opens: at login for a Druid in a group (or solo
-mode) unless `visible` is false, or later when the spells arrive; on joining a group, overriding a
-close (but not the roster arriving just after login); never on other roster churn, a ready check or
-a settings change over a close; nothing at all on another class, slash commands included (one
-line saying so). The Gift rank and spec icon are read from the spellbook when spells change, never
-per rebuild. Its test seam is
+It no longer decides **when** the window opens. That is `lib.Visibility` (LibGroupBuffs r24):
+Wildly builds one `vis` with its class, solo setting and saved `visible`, and its events report what
+happened — `vis:Login()`, `ReadyCheck()`, `GroupJoined()`, `RosterChanged()`, `SoloToggled(on)`,
+`ContentChanged()`. **Do not add a window-policy branch to `Wildly.lua`.** This used to live here, in
+Priestly and in the third addon as three copies, and every defect they produced was one found in a
+single addon and left standing in the other two (LibGroupBuffs#22 lists them). `ContentChanged` is
+one method for every source — a setting, a spell learned, a tank appearing, zoning — because
+splitting it is what grew the copies.
+
+What stays Wildly's is whether a notification is worth making at all: the class it is for, and invalidating its
+own caches before it reports — `ForgetTanks()` runs before `vis:RosterChanged()` and before the
+role change is reported, because the library reads the roster to decide. The Gift rank and spec
+icon are read from the spellbook when spells change, never per rebuild. Its test seam is
 `Wildly._test`.
 
 `WildlyConfig.lua` exposes: `Wildly_EnsureDefaults`, `Wildly_ShowSolo`, `Wildly_TrackPets`,
