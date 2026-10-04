@@ -206,7 +206,7 @@ WoW.dispatch("PLAYER_LOGIN")
 WoW.dispatch("PLAYER_ENTERING_WORLD", true, false)
 H.check(WildlyDB ~= nil, "a Druid gets the saved table")
 H.check(panelFrame._category ~= nil, "and the options page")
-H.check(table.concat(WoW.messages, " "):find("tested on", 1, true) ~= nil,
+H.check(table.concat(WoW.messages, " "):find("new client build", 1, true) ~= nil,
     "and the build notice on a build Wildly was not measured on")
 
 ------------------------------------------------------------
@@ -230,7 +230,7 @@ end
 local function saidSettings(fromIndex)
     local out = {}
     for i = fromIndex + 1, #WoW.messages do
-        if not WoW.messages[i]:find("tested on game build", 1, true) then
+        if not WoW.messages[i]:find("new client build", 1, true) then
             out[#out + 1] = WoW.messages[i]
         end
     end
@@ -320,10 +320,10 @@ H.eq(said(before), "", "the measured build is silent")
 freshSession(FIXED)
 before = #WoW.messages
 Wildly_HandleEnteringWorld(false, true)
-H.check(not said(before):find("tested on", 1, true), "a /reload never shows the build warning")
+H.check(not said(before):find("new client build", 1, true), "a /reload never shows the build warning")
 before = #WoW.messages
 WoW.dispatch("PLAYER_LOGIN")
-H.check(not said(before):find("tested on", 1, true),
+H.check(not said(before):find("new client build", 1, true),
     "nor does PLAYER_LOGIN, which fires on /reload too")
 
 before = #WoW.messages
@@ -331,18 +331,21 @@ Wildly_HandleEnteringWorld(true, false)
 msg = said(before)
 H.check(msg:find(FIXED, 1, true) and msg:find(MEASURED, 1, true),
     "a real login on a new build warns, naming both: " .. msg)
-H.check(msg:find("report", 1, true), "worded for players: " .. msg)
-H.check(not msg:find("MEASURED_ON_BUILD", 1, true),
-    "with no developer instructions a player cannot act on: " .. msg)
+H.check(msg:find("re-measure", 1, true) and msg:find("MEASURED_ON_BUILD", 1, true),
+    "worded for whoever re-measures, since only a development copy sees it: " .. msg)
 
--- Not latched: it repeats at every real login until MEASURED_ON_BUILD is
--- bumped. A notice shown once and missed would leave the addon running on
--- stale findings with nothing left to say so.
+-- Once per new build, not at every login: the announced build is remembered
+-- account-wide, the next login on it keeps quiet, and the next build speaks
+-- again. Bumping MEASURED_ON_BUILD after re-measuring silences it for good.
+H.eq(WildlySVCheck.seenBuild, FIXED, "the announced build is remembered")
 before = #WoW.messages
 Wildly_HandleEnteringWorld(true, false)
-H.check(said(before):find("tested on", 1, true),
-    "it warns again at the next real login, until someone re-measures")
-H.eq(WildlyDB.warnedBuild, nil, "and records nothing that could silence it")
+H.check(not said(before):find("new client build", 1, true),
+    "the next real login on that build keeps quiet")
+WoW.build = "70300"
+before = #WoW.messages
+Wildly_HandleEnteringWorld(true, false)
+H.check(said(before):find("new client build", 1, true), "the next build speaks again")
 
 -- An unpackaged checkout still carries the packager's token: also a
 -- development copy.
@@ -350,7 +353,7 @@ runAsVersion("@project-version@")
 freshSession(FIXED)
 before = #WoW.messages
 Wildly_HandleEnteringWorld(true, false)
-H.check(said(before):find("tested on", 1, true), "an unpackaged checkout warns too")
+H.check(said(before):find("new client build", 1, true), "an unpackaged checkout warns too")
 
 -- A release keeps quiet on any build. What flags an addon out of date is the
 -- TOC's Interface number; this notice is for whoever re-measures.
@@ -359,7 +362,8 @@ H.check(Wildly.API.AddonVersion("Wildly") ~= "dev", "the stub reports a release 
 freshSession(FIXED)
 before = #WoW.messages
 Wildly_HandleEnteringWorld(true, false)
-H.check(not said(before):find("tested on", 1, true),
+H.check(not said(before):find("new client build", 1, true),
     "a release never shows the build notice: " .. said(before))
+H.eq(WildlySVCheck.seenBuild, nil, "and records nothing, so a later dev copy still hears it")
 
 H.done("test_config_seam")

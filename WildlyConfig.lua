@@ -93,6 +93,18 @@ local function AccountCheckStore()
     if not WildlySVCheck then WildlySVCheck = {} end
     return WildlySVCheck
 end
+-- The client build a development copy last announced, account-wide, so the
+-- notice speaks once per new build rather than at every login on every
+-- character. See the report callback below.
+local function AnnouncedBuild()
+    return WildlySVCheck and WildlySVCheck.seenBuild
+end
+
+local function RememberAnnouncedBuild(build)
+    AccountCheckStore()
+    WildlySVCheck.seenBuild = build
+end
+
 -- config-owner: end
 
 -- Empty on purpose: the one place the SavedVariables fix, or a migration, will
@@ -120,7 +132,16 @@ local settings = Wildly.Settings.New({
     measuredOnBuild = MEASURED_ON_BUILD,
     report = function(text, kind)
         if not DEFAULT_CHAT_FRAME then return end
-        if kind == "newBuild" and not IsDevelopmentCopy() then return end
+        if kind == "newBuild" then
+            -- Once per new client build, in a development copy only: time to
+            -- re-measure, then bump MEASURED_ON_BUILD (which silences it for good).
+            if not IsDevelopmentCopy() then return end
+            local build = API.ClientBuild()
+            if build == AnnouncedBuild() then return end
+            RememberAnnouncedBuild(build)
+            text = "new client build " .. tostring(build) .. " (measured on "
+                .. MEASURED_ON_BUILD .. "): re-measure, then bump MEASURED_ON_BUILD."
+        end
         if kind == "settingsLoaded" then text = "|cff55ff55" .. text .. "|r" end
         DEFAULT_CHAT_FRAME:AddMessage("|cffff7c0a[Wildly]|r " .. text)
     end,
@@ -270,8 +291,8 @@ end
 -- `svLoadCheck` marker in each scope - written every session, never in
 -- DEFAULTS - and says so once when one comes back carrying a build OTHER than
 -- the one running, which only a patched client can produce. The build check
--- warns at every real login on a build other than MEASURED_ON_BUILD,
--- deliberately unlatched.
+-- speaks at a real login on a build other than MEASURED_ON_BUILD,
+-- in a development copy only, once per new build (the report callback).
 
 function Wildly_CheckClientBuild()
     settings:CheckBuild()
