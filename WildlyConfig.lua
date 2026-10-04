@@ -100,6 +100,17 @@ end
 function Wildly_OnConfigChanged(key)
 end
 
+-- The build notice is for whoever has to re-measure, not for players: a
+-- release that still runs on a newer client gains nothing from being told it
+-- was tested on an older one, and what flags an addon out of date is the TOC's
+-- Interface number, not this. So it speaks only in a development copy -
+-- `dev` from Tools/deploy.ps1, or the raw packager token in an unpackaged
+-- checkout. Read at call time, so a test can change the version.
+local function IsDevelopmentCopy()
+    local version = API.AddonVersion(ADDON_NAME)
+    return version == "dev" or version == "@project-version@"
+end
+
 local settings = Wildly.Settings.New({
     owner = ADDON_NAME,
     scopes = {
@@ -109,6 +120,7 @@ local settings = Wildly.Settings.New({
     measuredOnBuild = MEASURED_ON_BUILD,
     report = function(text, kind)
         if not DEFAULT_CHAT_FRAME then return end
+        if kind == "newBuild" and not IsDevelopmentCopy() then return end
         if kind == "settingsLoaded" then text = "|cff55ff55" .. text .. "|r" end
         DEFAULT_CHAT_FRAME:AddMessage("|cffff7c0a[Wildly]|r " .. text)
     end,
