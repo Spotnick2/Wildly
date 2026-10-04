@@ -1,5 +1,13 @@
 # Wildly Changelog
 
+## v1.0.3 - 2026-10-04
+
+### Fixed
+- **No more "this version was tested on game build …" message at login.** It appeared every time
+  the game client updated, even though Wildly kept working fine. It was a reminder meant for the
+  addon's developer, not for players, and now only shows in development copies. If something
+  does misbehave after a game update, please still report it.
+
 ## v1.0.2 - 2026-09-29
 
 ### Fixed
