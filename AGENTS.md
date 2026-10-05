@@ -66,34 +66,49 @@ this section is deleted. Update this section as slices land, and delete it when 
 ## Repository Layout
 
 - `Wildly.toc` — addon manifest: interface version, saved variables, load order.
-- `WildlyCompat.lua` — the bridge to the shared library: asks the library whether its active copy is usable
-  (`lib.Status(NEEDS_MINOR)`, since r12), exposes `Wildly.API`,
-  `Wildly.Settings`, `Wildly.Engine`, `Wildly.UI`, and `Wildly.RegisterEvents`, which reports
-  rejected events in chat. No API code lives here.
+- `WildlyCompat.lua` — the bridge to the shared library: asks it for Wildly's instance
+  (`pcall(lib.New, lib, { owner, report, needs = NEEDS_MINOR })`, since r26) and exposes it as
+  `Wildly.GB`, with `Wildly.API = GB.API` and `Wildly.RegisterEvents`. It holds Wildly's one
+  reporter for everything the library says (rejected events, the settings checks), and words a
+  refusal for the player by `lib:Refusal`'s code (r28), never by the error's text. No API code
+  lives here.
 - `WildlyConfig.lua` — options panel, defaults, the Thorns mode, exported config helpers.
 - `Wildly.lua` — `DEFS`, the Thorns member filter, the reagent footer items, the spec icon and
-  colours, event handling, slash commands and the test seam. Everything else is LibGroupBuffs:
-  - `Engine.lua` is the buff logic (aura cache, roster, stats, targeting, click mapping,
-    `UNIT_AURA` filtering).
-  - `UI.lua` is the window (rows, popover, secure buttons, dragging, ticker, what combat defers).
-  A change to how buffs are read, targeted or drawn belongs in the library, not here.
+  colours, event handling, slash commands and the test seam. Everything else is LibGroupBuffs
+  (one runtime file since r26, `LibGroupBuffs.lua`): the buff logic (aura cache, roster, stats,
+  targeting, click mapping, `UNIT_AURA` filtering) and the window (rows, popover, secure
+  buttons, dragging, ticker, what combat defers), drawn with LibGlass-1.0's glass. A change to
+  how buffs are read, targeted or drawn belongs in the library, not here.
 - `tests/` — Lua 5.1 unit tests, no game client. See `tests/README.md`.
-- `Tools/deploy.ps1` — deploy to the local Forever AddOns folder, library included.
-- `.github/workflows/package-check.yml` — tests against the pinned library, a dry-run package, and
-  a check that the zip embeds the library. Publishes nothing.
+- `Tools/deploy.ps1` — deploy to the local Forever AddOns folder, both libraries included
+  (LibGlass by its own `Tools/deploy.ps1`, first).
+- `.github/workflows/package-check.yml` — tests against the pinned libraries, a dry-run package,
+  and a check that the zip is exactly the addon and both libraries at their pins. Publishes
+  nothing.
 - `.pkgmeta`, `README.md`, `CHANGELOG.md`, `LICENSE` — packaging and user-facing material.
 
-**One dependency: LibGroupBuffs-1.0.** It is never committed here — `Libs/` is git-ignored:
+**Two embedded libraries, side by side: LibGlass-1.0 and LibGroupBuffs-1.0.** LibGroupBuffs draws
+its window with LibGlass's glass but does not embed it (the packager does not fetch an external's
+own externals), so Wildly declares both. Neither is ever committed here — `Libs/` is git-ignored:
 
-- **Release:** `.pkgmeta` `externals` embeds it at `Libs/LibGroupBuffs-1.0`, **pinned to a tag**
-  (`r<MINOR>`), so a release cannot change underneath its own source.
-- **Development:** check it out **next to this repository**, as `../LibGroupBuffs`. `tests/run.ps1`
-  and `Tools/deploy.ps1` read it from there (or from `-Library`), print the revision they used, and
-  fail loudly if it is missing. There is no vendored fallback.
-- **CI** checks out the pinned tag, not the library's `main`.
+- **Release:** `.pkgmeta` `externals` embeds them at `Libs/LibGlass-1.0` and
+  `Libs/LibGroupBuffs-1.0`, each **pinned to a tag** (`r<MINOR>`), so a release cannot change
+  underneath its own source. A `commit:` pin (a full SHA) is accepted while piloting an untagged
+  library release, and goes back to a tag before Wildly releases. **No comment on a value line**:
+  the packager's YAML reader keeps it as part of the ref.
+- **Development:** check both out **next to this repository**, as `../LibGlass` and
+  `../LibGroupBuffs`. `tests/run.ps1` and `Tools/deploy.ps1` read them from there (or from
+  `-LibGlass` / `$env:LIBGLASS` and `-Library`), warn when a checkout is not at its `.pkgmeta` pin
+  (`tests/pins.ps1`), and fail loudly if one is missing. There is no vendored fallback.
+- **CI** fetches each at its pin with `tests/fetch_external.sh`, not the libraries' `main`.
 
-`NEEDS_MINOR` in `WildlyCompat.lua` must equal the pinned tag; `tests/test_manifest.lua` checks the
-TOC path, the externals key, the tag, the floor and the ignore rule all agree.
+Every reader of a pin asks for it **by path**, through `tests/pkgmeta.lua`: with two externals the
+first `tag:` in the file is LibGlass's. `NEEDS_MINOR` in `WildlyCompat.lua` must equal
+LibGroupBuffs' pin; `tests/test_manifest.lua` checks the TOC paths, the externals keys, the pins,
+the floor and both ignore lists agree.
+
+**Bump a pin only in a release made anyway.** At an older pin Wildly keeps working, because the
+newest copy any addon loads serves the older surface too; a pin bump is not a reason to release.
 
 ### A gap in a library seam
 
@@ -102,20 +117,36 @@ appearance key was the first). **Never fork or patch the library from here.** Fi
 `C:\Projects\LibGroupBuffs`, following that repository's `AGENTS.md`: issue, branch, PR, `MINOR`
 raised in every runtime file, the previous tag's files added as test fixtures, Priestly's suite run
 against the working copy, merge, tag `r<MINOR>`. Then bump the pin here: `tag:` in `.pkgmeta` and
-`NEEDS_MINOR` in `WildlyCompat.lua`, in a Wildly PR.
+`NEEDS_MINOR` in `WildlyCompat.lua`, in a Wildly PR. A need found in LibGlass goes on its issue
+tracker the same way; never edit `C:\Projects\LibGroupBuffs` or `C:\Projects\LibGlass` from a
+Wildly session.
 
 ## Architecture
 
 Load order from `Wildly.toc`:
 
-1. `Libs\LibGroupBuffs-1.0\LibGroupBuffs-1.0.xml` — LibStub, then Compat, Settings, Engine, UI.
-2. `WildlyCompat.lua` — refuses a missing, broken or too-old library with a chat message (a
-   too-old one is named as that, with both versions, since nothing crashed), else exposes it.
-   Once ported, `WildlyConfig.lua` and `Wildly.lua` return early when `Wildly.API` is nil, so a
-   broken library is one message, not a cascade.
-3. `WildlyConfig.lua` — `WildlyDB` defaults, the settings object, the options panel and the
+1. `Libs\LibGlass-1.0\LibGlass-1.0.xml` — LibStub, then LibGlass. First, because `lib:New`
+   refuses while LibGlass is missing or half-loaded.
+2. `Libs\LibGroupBuffs-1.0\LibGroupBuffs-1.0.xml` — LibStub, then `LibGroupBuffs.lua`.
+3. `WildlyCompat.lua` — asks `lib:New` for Wildly's instance, and on a refusal says in chat what
+   the player can do about it, by `lib:Refusal`'s code: another addon's copy that did not finish
+   loading (how to see which, with `/console scriptErrors 1`, not a reinstall that would change
+   nothing), LibGlass missing (reinstall Wildly) or half-loaded (as the first), or a copy below the
+   floor (both versions named, since nothing crashed). Anything else `New` throws, and a code this
+   build does not know, is "failed to load completely". `New`'s own text goes only into the
+   developers' `error()`, as `lib:New said: …`. `WildlyConfig.lua` and `Wildly.lua` return early
+   when `Wildly.API` is nil, so a broken library is one message, not a cascade.
+4. `WildlyConfig.lua` — `WildlyDB` defaults, the settings object, the options panel and the
    `Wildly_*` config helpers.
-4. `Wildly.lua` — the host.
+5. `Wildly.lua` — the host.
+
+Constructors go through the instance and are dot-called: `Wildly.GB.Engine(host)`,
+`Wildly.GB.UI(host)`, `Wildly.GB.Visibility(spec)`, `Wildly.GB.Settings(spec)`, with `owner` and
+`report` filled in by the instance; pass neither. What the library says arrives at one reporter in
+`WildlyCompat.lua`. Rejected events (`kind == "events"`) are recorded in `Wildly.eventFailures`
+before anything is printed, so the record exists with no chat frame. Each other kind's rewording
+lives with the file that owns it, in `Wildly.reportFilters` (`newBuild` and `settingsLoaded`, in
+`WildlyConfig.lua`); a filter returns the text to print, or nil to stay quiet.
 
 `Wildly.lua` exposes, for the config: `Wildly_ScheduleRefresh`, `Wildly_ForceRebuild` (does
 nothing in combat; the library rebuilds a visible window at combat end), `Wildly_OnSoloToggle`,
@@ -222,8 +253,10 @@ deliberately not listed, and an unrecognised rank shows no reagent rather than a
 ### Appearance
 
 Wildly's orange border, header line, popover border and divider (`#ff7c0a` family) and its spec
-icon go through the UI's `appearance()` host callback. Never fork `UI.lua` for a colour: if a
-colour has no key, that is a library gap (see above).
+icon go through the UI's `appearance()` host callback. Never fork the library's window code for a
+colour: if a colour has no key, that is a library gap (see above). The glass itself is LibGlass's,
+and any colour handed to a glass bar's `SetStatusBarColor` must be **plain** numbers, never a value
+read from the client that may be secret.
 
 The talent-tab scan is gone on this client (`GetNumTalentTabs` / `GetTalentTabInfo` do not exist),
 so the spec icon comes from known spells, by ID: Moonkin Form (24858) → Balance, Swiftmend
@@ -302,8 +335,12 @@ The window is LibGroupBuffs' `UI.lua`, which owns these rules; do not reimplemen
 
 - **In combat the window touches nothing.** Both frames parent secure buttons, so the client
   silently refuses to hide, move, re-anchor or stop a drag on them. `ui:Close()` returns false and
-  the host says the window closes when combat ends (`onCloseDeferred`); `ui:OnCombatEnd()` on
-  `PLAYER_REGEN_ENABLED` does what was asked.
+  the host says the window closes when combat ends (`onCloseDeferred(ui, manual)`);
+  `ui:OnCombatEnd()` on `PLAYER_REGEN_ENABLED` does what was asked. Since r27 the window's own
+  closes reach `onCloseDeferred` too, with `manual` false. **Wildly stays quiet for those**
+  (decided 2026-10-04, LibGroupBuffs#55): the window staying up through the fight is wanted, since
+  it shows who needs a rebuff. If that changes, word the two differently, or the player's X after
+  an automatic close prints the same line twice in one fight.
 - Buttons register **both mouse edges** (`API.ClickEdges`), and **never set `typerelease`** — that
   would cast twice and burn two reagents.
 - No `SecureHandler*`, `_onstate-*` or state drivers: `loadstring_untainted` is missing on this
@@ -316,11 +353,22 @@ The window is LibGroupBuffs' `UI.lua`, which owns these rules; do not reimplemen
 Offline, on every change:
 
 ```powershell
-pwsh tests\run.ps1        # luac -p + all unit tests; needs ../LibGroupBuffs and Lua 5.1's luac
+pwsh tests\run.ps1        # luac -p + all unit tests; needs ../LibGlass, ../LibGroupBuffs, Lua 5.1's luac
 ```
 
-The first line names the library checkout and revision the tests ran against, next to the tag a
-release would ship. They differ while working on both; they must match before a release.
+The first lines name each library checkout and revision the tests ran against, and warn when one
+is not at its `.pkgmeta` pin. That is normal while working on a library; it must not be so before
+a release.
+
+**Do not trust a sibling checkout to be at the pin.** Another session may have it on a branch (the
+r28 work found `../LibGroupBuffs` at `r27-4`, whose stub models a different client build). To test
+exactly what ships, clone both pins into a temporary folder and point the run there:
+
+```bash
+bash tests/fetch_external.sh Libs/LibGroupBuffs-1.0 "$TMP/LibGroupBuffs"   # needs lua5.1, or $LUA
+bash tests/fetch_external.sh Libs/LibGlass-1.0 "$TMP/LibGlass"
+pwsh tests/run.ps1 -Library "$TMP/LibGroupBuffs" -LibGlass "$TMP/LibGlass"
+```
 
 **The stub is shared.** The client surface lives in `../LibGroupBuffs/tests/wow_stubs.lua`, one
 copy for Priestly, Wildly and Magely (LibGroupBuffs#21) — it was a copy here until the glass
@@ -376,16 +424,28 @@ a second time (see Priestly's `AGENTS.md`, Packaging, for the history).
    players.
 2. The release type comes from the **tag name**: `alpha` → Alpha, `beta` → Beta, else Release.
    CurseForge offers only Release to most users; tag `beta` only to hold a build back.
-3. **Check the published zip carries LibGroupBuffs, and nothing else.** CI proves the BigWigs
-   packager embeds it, but releases are built by CurseForge's own packager from the tag webhook,
-   which CI cannot run, and **the two do not behave the same**. Download the published file, run
-   `lua tests/libfiles.lua <unzipped>/Wildly/Libs/LibGroupBuffs-1.0 ship`, then count the files in
-   that folder: seven - the six that command lists (the XML and the five files it loads) plus
-   `LICENSE`. A zip without them is an addon that does not start for everyone who updates.
+3. **Merge only on green CI, and push the tag only after the release-notes commit's `main` run is
+   green**, so the zip check and the tag cover the same content.
+4. **Check the published zip carries both libraries, and nothing else.** CI proves the BigWigs
+   packager embeds them, but releases are built by CurseForge's own packager from the tag webhook,
+   which CI cannot run, and **the two do not behave the same**. Download the published file and
+   check:
+   - `Libs/LibGroupBuffs-1.0/` holds **4** files: the XML, `LibStub/LibStub.lua`,
+     `LibGroupBuffs.lua` and `LICENSE` (`lua tests/libfiles.lua <unzipped>/Wildly/Libs/LibGroupBuffs-1.0 ship
+     <unzipped>/Wildly/Libs/LibGlass-1.0` lists all but `LICENSE`). **No `Media/`** there.
+   - `Libs/LibGlass-1.0/` holds **19**: its XML, `LibGlass.lua`, `LibStub/LibStub.lua`, `LICENSE`
+     and 15 textures under `Media/` (`lua tests/libfiles.lua --glass <unzipped>/Wildly/Libs/LibGlass-1.0 ship`).
+   - Both libraries equal their pinned checkouts (CRs stripped for `.lua` and `.xml`).
+   - The released `WildlyConfig.lua` still reads `"@" .. "project-version@"`: the packager
+     rewrites a whole keyword in every Lua file it ships (#25).
+
+   A zip without them is an addon that does not start for everyone who updates.
 
    **CurseForge does not apply an external's own `.pkgmeta`.** Measured on Priestly's v2.0.6
    download: the library's `tests/`, `AGENTS.md`, `CLAUDE.md` and `README.md` all shipped, 46 files
-   instead of 7. The entries under `Libs/LibGroupBuffs-1.0/` in *this* `.pkgmeta` are the guarantee,
-   and `tests/test_manifest.lua` mirrors them from the library's own list.
-4. Keep `@project-version@` in the TOC; `Tools/deploy.ps1` rewrites it to `dev` in the deployed
-   copy only.
+   instead of 7. The entries under `Libs/LibGroupBuffs-1.0/` and `Libs/LibGlass-1.0/` in *this*
+   `.pkgmeta` are the guarantee, and `tests/test_manifest.lua` mirrors them from each library's own
+   list.
+5. Keep `@project-version@` in the TOC; `Tools/deploy.ps1` rewrites it to `dev` in the deployed
+   copy only. Nowhere else: a Lua file that needs the token builds it from pieces, and
+   `tests/test_manifest.lua` fails on a whole one in any shipped Lua file.

@@ -1,120 +1,195 @@
 -- ============================================================================
 -- WildlyCompat.lua  -  the bridge to LibGroupBuffs-1.0.
 --
--- Every removed or moved API on WoW: Forever 1.60.1, the buff engine and the
--- buff window live in the shared library (Libs\LibGroupBuffs-1.0, loaded
--- first by the TOC), which Priestly and Magely embed too. This file checks
--- the library loaded completely and exposes it under Wildly's names:
+-- Every removed or moved API on WoW: Forever 1.60.1, the buff engine, the
+-- window, its open/close policy and the settings write path live in the shared
+-- library (Libs\LibGroupBuffs-1.0, loaded by the TOC after LibGlass-1.0, the
+-- glass material its window draws with), which Priestly and Magely embed too.
+-- This file asks the library for Wildly's own instance and exposes it:
 --
---     local API = Wildly.API
+--     Wildly.GB       the instance: GB.Engine(host), GB.UI(host),
+--                     GB.Settings(spec), GB.Visibility(spec), GB.STATES, ...
+--     Wildly.API      the compat layer, GB.API, under the name the rest of
+--                     Wildly already uses
 --
--- No fallback copy lives here on purpose. If the library is missing or broken,
--- Wildly says so in chat and does not start, instead of running on a stale
--- duplicate.
+-- lib:New does the version check this file used to carry by hand: it refuses
+-- a copy that did not finish loading, a missing or half-loaded LibGlass, and
+-- one older than NEEDS_MINOR. No fallback copy lives here on purpose. If the
+-- library is missing or refuses, Wildly says so in chat and does not start,
+-- instead of running on a stale duplicate.
 -- ============================================================================
 
 Wildly = Wildly or {}
 
 -- The oldest library this build of Wildly works against. A floor, not a
--- feature check: behaviour changes cannot be feature-detected. r11 lets an
--- addon colour the popover's divider, which Wildly draws orange; r12 answers
--- for itself whether a copy is usable, which is what lib.Status below is.
--- Keep this equal to the tag .pkgmeta pins; tests/test_manifest.lua checks that.
-local NEEDS_MINOR = 25
-
--- Is this copy usable? The library answers, from its own list of files, so
--- the marker names and entry points are no longer Wildly's business - this
--- file used to carry them, as Priestly's did (Spotnick2/priestly#52). A copy
--- older than r12 has no Status to ask, which is itself an answer: either it
--- is too old for this build, or its last file threw before installing it.
---
--- That reading REQUIRES NEEDS_MINOR >= 12, the release Status arrived in. Drop
--- the floor below that - rolling the pin back, say - and a healthy older
--- library with no Status would be called incomplete, and Wildly would refuse
--- to start for everyone. tests/test_manifest.lua holds the floor at 12 or
--- above for exactly that reason.
---
--- Called under pcall: it is library code on a shared table another copy may
--- have left half-built, and a throw here would skip the chat message below.
--- What it threw goes into the developers' error, not the player's line.
-local lib, minor
-if LibStub then lib, minor = LibStub("LibGroupBuffs-1.0", true) end
-local status, statusError
-if lib and type(lib.Status) == "function" then
-    local asked, answer = pcall(lib.Status, NEEDS_MINOR)
-    if asked then status = answer else status, statusError = "incomplete", answer end
-end
-if lib and not status then
-    status = (type(minor) == "number" and minor < NEEDS_MINOR) and "too-old" or "incomplete"
-end
-
-local problem
-if not lib then
-    problem = "the LibGroupBuffs-1.0 library is missing from Wildly's Libs folder"
-elseif status == "too-old" then
-    -- Behind the floor. Said separately from a failed load: the TOC loads
-    -- Wildly's own copy before this file and LibStub upgrades anything older,
-    -- so an older one being active means Wildly's own copy is missing or
-    -- stale - whatever state the other addon's copy is in. That is what the
-    -- player can fix, so it is what they are told.
-    problem = "the LibGroupBuffs-1.0 library in use is r" .. tostring(minor)
-        .. ", older than the r" .. NEEDS_MINOR .. " this Wildly needs"
-elseif status ~= "ok" then
-    problem = "the LibGroupBuffs-1.0 library failed to load completely"
-end
-
-if problem then
-    -- Said in chat, not only thrown: Lua errors are hidden by default on this
-    -- client, and without this line the addon would just be silently dead.
-    -- Once they are ported (AGENTS.md, Port status), WildlyConfig.lua and
-    -- Wildly.lua check Wildly.API and stop before building anything, so this
-    -- is the only message. Until then they are the TBC code, which does not
-    -- run on this client with or without the library.
-    if DEFAULT_CHAT_FRAME then
-        DEFAULT_CHAT_FRAME:AddMessage("|cffff7c0a[Wildly]|r |cffff6666Wildly cannot start:|r "
-            .. problem .. ". Reinstalling Wildly should fix it.")
-    end
-    error("Wildly: " .. problem .. " (Libs\\LibGroupBuffs-1.0"
-        .. (statusError and ("; lib.Status threw: " .. tostring(statusError)) or "")
-        .. "). Developers: check out "
-        .. "LibGroupBuffs next to the repository and run Tools/deploy.ps1.")
-end
-
-Wildly.API = lib.API
--- The settings write path and the client-fix watches; WildlyConfig.lua builds
--- Wildly's settings object from it.
-Wildly.Settings = lib.Settings
--- The buff engine; Wildly.lua builds Wildly's engine from it.
-Wildly.Engine = lib.Engine
--- The buff window; Wildly.lua builds Wildly's from it.
-Wildly.UI = lib.UI
--- When that window opens itself and when it must not. Wildly still owns its
--- events and its slash commands; this decides what each of them means for the
--- window, in one place instead of three (LibGroupBuffs#22).
-Wildly.Visibility = lib.Visibility
+-- feature check: behaviour changes cannot be feature-detected. r26 is where
+-- lib:New arrived, and r28 where lib:Refusal says why it refused; this file
+-- is written against both. Keep this equal to the MINOR .pkgmeta pins;
+-- tests/test_manifest.lua checks that.
+local NEEDS_MINOR = 28
 
 -- Wildly's own record of the events this client rejected, for
 -- `/dump Wildly.eventFailures`. The library also keeps it, as
 -- API.eventFailuresByOwner.Wildly; this copy is the short name to type.
 Wildly.eventFailures = Wildly.eventFailures or {}
 
--- How Wildly tells the player. The library never prints - it has no business
--- writing to another addon's chat frame - so it calls this with the names the
--- client rejected, whether it threw or returned false.
-local function ReportRejected(failed)
-    local mine = lib.API.eventFailuresByOwner and lib.API.eventFailuresByOwner.Wildly or {}
-    for _, ev in ipairs(failed) do
-        Wildly.eventFailures[ev] = mine[ev] or true
+-- Per-kind rewording for the one reporter below, filled in by the files that
+-- own each kind (WildlyConfig.lua: newBuild, settingsLoaded). Looked up when
+-- a report arrives, so a filter installed after this file loads is the one
+-- that runs. A filter returns the text to print, or nil to say nothing.
+Wildly.reportFilters = Wildly.reportFilters or {}
+
+local GB
+
+-- How Wildly tells the player. The library never prints - it has no
+-- business writing to another addon's chat frame - so everything it has to
+-- say arrives here: the settings checks, and with kind "events" the names
+-- the client rejected, whether it threw or returned false.
+local function Report(text, kind)
+    if kind == "events" then
+        text = tostring(text)
+        -- Recorded whether or not anything can be printed: the record is what
+        -- `/dump Wildly.eventFailures` reads when the line was never seen.
+        local mine = GB and GB.EventFailures() or {}
+        for ev, why in pairs(mine) do Wildly.eventFailures[ev] = why or true end
+        -- The label in red, the names plain - whatever the library calls it.
+        -- Its wording is the library's to change, so this matches the shape
+        -- ("label: names"), not the words, and a line without a colon is red
+        -- throughout rather than plain.
+        local label, names = text:match("^([^:]*:)(.*)$")
+        text = label and ("|cffff6666" .. label .. "|r" .. names) or ("|cffff6666" .. text .. "|r")
     end
-    if DEFAULT_CHAT_FRAME then
-        DEFAULT_CHAT_FRAME:AddMessage("|cffff7c0a[Wildly]|r |cffff6666unsupported events skipped:|r "
-            .. table.concat(failed, ", "))
+    -- Before any filter: a filter may record that it spoke (newBuild does),
+    -- and with no chat frame nothing was said.
+    if not DEFAULT_CHAT_FRAME then return end
+    local filter = Wildly.reportFilters[kind]
+    if filter then text = filter(text, kind) end
+    if text then DEFAULT_CHAT_FRAME:AddMessage("|cffff7c0a[Wildly]|r " .. text) end
+end
+
+local lib, minor
+if LibStub then lib, minor = LibStub("LibGroupBuffs-1.0", true) end
+
+-- What a player can do about a copy that did not finish loading. The copy
+-- LibStub runs is the newest any addon shipped, so it may well not be
+-- Wildly's - and errors are hidden by default, so say how to see them.
+local SEE_WHICH = " - one addon's copy of it failed. With /console scriptErrors 1 and /reload,"
+    .. " the first error names that addon; updating or disabling it should fix this"
+
+local FAILED = "the LibGroupBuffs-1.0 library failed to load completely. Reinstalling Wildly should fix it"
+
+-- Why lib:New refused, in the words a player needs, by the code lib:Refusal
+-- gives (r28, LibGroupBuffs#54) - never by the error's words, which are the
+-- library's to change. Refusal returns nil when New would not refuse at all:
+-- what New threw was then a bug, or a host mistake such as a second New for
+-- the same owner, and reads as a failed load; its text goes to developers
+-- only. So does a code this build has never heard of - the library may add
+-- codes, and promises only never to rename or remove one.
+local function WhyRefusedByCode(why)
+    if why == nil then return FAILED end
+    if why.code == "incomplete" then
+        -- LibStub runs the newest copy any addon shipped, so it may well not
+        -- be Wildly's: reinstalling Wildly would change nothing.
+        return "the LibGroupBuffs-1.0 library (r" .. tostring(why.active) .. ") did not finish loading"
+            .. SEE_WHICH
+    elseif why.code == "glass-missing" then
+        -- Not registered at all: no addon's copy loaded, and Wildly ships one
+        -- in its own Libs folder, so it is Wildly's install.
+        return "the LibGlass-1.0 library is missing from Wildly's Libs folder."
+            .. " Reinstalling Wildly should fix it"
+    elseif why.code == "glass-incomplete" then
+        -- Registered but never ready: the newest copy threw partway. Wildly's
+        -- own copy loaded, or the name would not be registered at all, so
+        -- reinstalling Wildly would change nothing.
+        return "the LibGlass-1.0 library (r" .. tostring(why.glassMinor) .. ") did not finish loading"
+            .. SEE_WHICH
+    elseif why.code == "too-old" then
+        return "this version of Wildly needs the LibGroupBuffs-1.0 library r" .. NEEDS_MINOR
+            .. " or newer, and the newest copy loaded is r" .. tostring(why.active)
+            .. ". Reinstalling Wildly should fix it"
+    end
+    return FAILED
+end
+
+-- The same three facts, read from the libraries' documented markers in New's
+-- order, for an active copy with no Refusal to ask: an r26 or r27 another
+-- addon shipped, active because Wildly's own r28 never registered. Then the
+-- copy running is behind the floor, and that is what the player hears.
+local function WhyRefusedByMarkers()
+    local _, active = LibStub:GetLibrary("LibGroupBuffs-1.0", true)
+    if lib.ready ~= active then return WhyRefusedByCode({ code = "incomplete", active = active }) end
+    local glass, glassMinor = LibStub:GetLibrary("LibGlass-1.0", true)
+    if type(glass) ~= "table" then return WhyRefusedByCode({ code = "glass-missing" }) end
+    if glass.ready ~= glassMinor then
+        return WhyRefusedByCode({ code = "glass-incomplete", glassMinor = glassMinor })
+    end
+    if type(active) == "number" and active < NEEDS_MINOR then
+        return WhyRefusedByCode({ code = "too-old", active = active })
+    end
+    return FAILED
+end
+
+local function WhyRefused()
+    if type(lib.Refusal) == "function" then return WhyRefusedByCode(lib:Refusal(NEEDS_MINOR)) end
+    return WhyRefusedByMarkers()
+end
+
+local problem, detail
+if not lib then
+    problem = "the LibGroupBuffs-1.0 library is missing from Wildly's Libs folder."
+        .. " Reinstalling Wildly should fix it"
+elseif type(lib.New) ~= "function" then
+    -- The TOC loads Wildly's own copy of the library before this file, and
+    -- LibStub UPGRADES an older copy another addon loaded first - so a copy
+    -- without New cannot be another addon's doing. Below the floor, Wildly's
+    -- own copy never registered; at or above it, the copy threw before New
+    -- was installed. Neither is a reason to send the player off to update
+    -- other addons.
+    if type(minor) == "number" and minor < NEEDS_MINOR then
+        problem = "the LibGroupBuffs-1.0 library in Wildly's Libs folder is r" .. tostring(minor)
+            .. ", and this version of Wildly needs r" .. NEEDS_MINOR
+            .. " - its own copy did not load. Reinstalling Wildly should fix it"
+    else
+        problem = FAILED
+    end
+else
+    -- Under pcall: New is library code on a shared table, and its refusals are
+    -- errors. A throw escaping here would skip the chat message below and
+    -- leave Wildly silently dead, since this client hides Lua errors by
+    -- default.
+    local ok, made = pcall(lib.New, lib, { owner = "Wildly", report = Report, needs = NEEDS_MINOR })
+    if ok then
+        GB = made
+    else
+        detail = tostring(made)
+        -- Under pcall too: it reads shared tables another copy may have left
+        -- half-built, and a throw here must still end in the chat line.
+        local asked, why = pcall(WhyRefused)
+        problem = asked and why or FAILED
     end
 end
+
+if problem then
+    -- Said in chat, not only thrown: Lua errors are hidden by default on this
+    -- client, and without this line the addon would just be silently dead.
+    -- WildlyConfig.lua and Wildly.lua both check Wildly.API and stop
+    -- before building anything, so there is exactly one message.
+    if DEFAULT_CHAT_FRAME then
+        DEFAULT_CHAT_FRAME:AddMessage("|cffff7c0a[Wildly]|r |cffff6666Wildly cannot start:|r "
+            .. problem .. ".")
+    end
+    error("Wildly: " .. problem .. " (Libs\\LibGroupBuffs-1.0, Libs\\LibGlass-1.0"
+        .. (detail and detail ~= problem and ("; lib:New said: " .. detail) or "")
+        .. "). Developers: check out LibGroupBuffs and LibGlass next to the repository and run "
+        .. "Tools/deploy.ps1.")
+end
+
+Wildly.GB = GB
+Wildly.API = GB.API
 
 -- Event registration, with the failures reported. Wildly code must use this,
 -- never the library's registration directly (tests/test_bridge.lua enforces
 -- it), so the reporter is never left out.
 function Wildly.RegisterEvents(frame, ...)
-    return lib.API.RegisterEventsReported(frame, "Wildly", ReportRejected, ...)
+    return GB.RegisterEvents(frame, ...)
 end

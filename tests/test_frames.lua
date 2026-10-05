@@ -152,6 +152,25 @@ WoW.inCombat = false
 WoW.dispatch("PLAYER_REGEN_ENABLED")
 WoW.flushTimers()
 
+-- The window's own closes (the group emptied, "show when solo" unticked) reach
+-- onCloseDeferred too since LibGroupBuffs r27, with `manual` false. Those stay
+-- quiet: the window staying up through the fight is wanted. And because they
+-- say nothing, the player's X after one is answered once, not twice.
+setup()
+main = T.mainFrame()
+WoW.inCombat = true
+at = #WoW.messages
+T.CloseUI(false)
+H.check(main:IsShown(), "an automatic close in combat leaves the window up")
+H.eq(said(at), "", "and says nothing: " .. said(at))
+runScript(main.closeBtn, "OnClick")
+local _, lines = said(at):gsub("leave combat", "")
+H.eq(lines, 1, "then the player's X in the same fight is answered once: " .. said(at))
+WoW.inCombat = false
+WoW.dispatch("PLAYER_REGEN_ENABLED")
+H.check(not main:IsShown(), "and combat's end hides it")
+WoW.flushTimers()
+
 ------------------------------------------------------------
 -- Events
 ------------------------------------------------------------

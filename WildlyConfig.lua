@@ -97,7 +97,7 @@ local function AccountCheckStore()
 end
 -- The client build a development copy last announced, account-wide, so the
 -- notice speaks once per new build rather than at every login on every
--- character. See the report callback below.
+-- character. See Wildly.reportFilters.newBuild below.
 local function AnnouncedBuild()
     return WildlySVCheck and WildlySVCheck.seenBuild
 end
@@ -132,28 +132,32 @@ local function IsDevelopmentCopy()
     return version == "dev" or version == UNPACKAGED_VERSION
 end
 
-local settings = Wildly.Settings.New({
-    owner = ADDON_NAME,
+-- What the settings checks say goes through Wildly's one reporter
+-- (WildlyCompat.lua); the two kinds this file owns are reworded here. Read
+-- by the reporter when a message arrives.
+--
+-- newBuild: once per new client build, in a development copy only - time to
+-- re-measure, then bump MEASURED_ON_BUILD (which silences it for good).
+Wildly.reportFilters.newBuild = function()
+    if not IsDevelopmentCopy() then return nil end
+    local build = API.ClientBuild()
+    if build == AnnouncedBuild() then return nil end
+    RememberAnnouncedBuild(build)
+    return "new client build " .. tostring(build) .. " (measured on "
+        .. MEASURED_ON_BUILD .. "): re-measure, then bump MEASURED_ON_BUILD."
+end
+
+Wildly.reportFilters.settingsLoaded = function(text)
+    return "|cff55ff55" .. text .. "|r"
+end
+
+-- owner and report are the instance's: GB.Settings fills them in.
+local settings = Wildly.GB.Settings({
     scopes = {
         { label = "per-character", get = CharacterStore },
         { label = "account-wide",  get = AccountCheckStore },
     },
     measuredOnBuild = MEASURED_ON_BUILD,
-    report = function(text, kind)
-        if not DEFAULT_CHAT_FRAME then return end
-        if kind == "newBuild" then
-            -- Once per new client build, in a development copy only: time to
-            -- re-measure, then bump MEASURED_ON_BUILD (which silences it for good).
-            if not IsDevelopmentCopy() then return end
-            local build = API.ClientBuild()
-            if build == AnnouncedBuild() then return end
-            RememberAnnouncedBuild(build)
-            text = "new client build " .. tostring(build) .. " (measured on "
-                .. MEASURED_ON_BUILD .. "): re-measure, then bump MEASURED_ON_BUILD."
-        end
-        if kind == "settingsLoaded" then text = "|cff55ff55" .. text .. "|r" end
-        DEFAULT_CHAT_FRAME:AddMessage("|cffff7c0a[Wildly]|r " .. text)
-    end,
     -- Looked up at call time, not captured: the hook is Wildly's extension
     -- point, and whatever replaces it later (or a test) must be the one called.
     onChanged = function(key) Wildly_OnConfigChanged(key) end,
@@ -301,7 +305,7 @@ end
 -- DEFAULTS - and says so once when one comes back carrying a build OTHER than
 -- the one running, which only a patched client can produce. The build check
 -- speaks at a real login on a build other than MEASURED_ON_BUILD,
--- in a development copy only, once per new build (the report callback).
+-- in a development copy only, once per new build (Wildly.reportFilters.newBuild).
 
 function Wildly_CheckClientBuild()
     settings:CheckBuild()

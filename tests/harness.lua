@@ -50,28 +50,50 @@ end
 -- to the sibling checkout. There is deliberately no vendored copy to fall back
 -- to: a stale one would make the suite pass against code that no longer ships.
 function H.libraryRoot()
-    return os.getenv("LIBGROUPBUFFS") or "../LibGroupBuffs"
+    return ((os.getenv("LIBGROUPBUFFS") or "../LibGroupBuffs"):gsub("\\", "/"):gsub("/$", ""))
+end
+
+-- Where LibGlass-1.0 is checked out: LIBGLASS (run.ps1 and CI set it), else
+-- the sibling checkout. Fails loudly when it is not there - a missing
+-- material is not something to skip.
+function H.libGlassRoot()
+    local root = (os.getenv("LIBGLASS") or "../LibGlass"):gsub("\\", "/"):gsub("/$", "")
+    local f = io.open(root .. "/LibGlass-1.0.xml", "rb")
+    if not f then
+        error("LibGlass checkout not found at " .. root .. " (no LibGlass-1.0.xml): clone "
+              .. "github.com/Spotnick2/LibGlass next to this repository or set LIBGLASS", 0)
+    end
+    f:close()
+    return root
 end
 
 -- Load a file or stop the run, naming it. A test that silently skipped a
 -- missing file is how a load error in the client can pass a green suite.
-local function run(path)
+-- The arguments are what the client passes an addon's file: its name and
+-- the addon's private table.
+local function run(path, ...)
     local chunk, err = loadfile(path)
     if not chunk then error("cannot load " .. path .. ": " .. tostring(err), 3) end
-    chunk()
+    chunk(...)
 end
 
--- The library's files as its XML lists them (tests/libfiles.lua, the same
--- reader run.ps1, deploy.ps1 and CI use).
-function H.loadLibrary()
-    local root = H.libraryRoot()
+-- The files the TOC's library lines load, in order: LibGlass's, then
+-- LibGroupBuffs', as full paths - read with tests/libfiles.lua, the same
+-- reader run.ps1, deploy.ps1 and CI use. LibGroupBuffs is checked against the
+-- LibGlass it draws from: a texture it names that LibGlass lacks fails here.
+function H.libraryScripts()
     local L = dofile("tests/libfiles.lua")
-    local ok, load = pcall(L.resolve, root)
+    local glassRoot, root = H.libGlassRoot(), H.libraryRoot()
+    local files = {}
+    local ok, load = pcall(L.glass, glassRoot)
+    if not ok then error(tostring(load), 2) end
+    for _, file in ipairs(load) do files[#files + 1] = glassRoot .. "/" .. file end
+    ok, load = pcall(L.resolve, root, nil, glassRoot)
     if not ok then
         -- Only a MISSING checkout gets the "check your checkout" advice.
-        -- resolve also fails now when a texture is absent or undeclared, and
-        -- telling someone with a perfectly good clone to re-clone it sends
-        -- them away from the one line that says what is actually wrong.
+        -- resolve also fails when a texture is undeclared, and telling someone
+        -- with a perfectly good clone to re-clone it sends them away from the
+        -- one line that says what is actually wrong.
         local why = tostring(load)
         if why:find("not found in", 1, true) then
             why = why .. ". Check LibGroupBuffs out next to this repository "
@@ -79,7 +101,18 @@ function H.loadLibrary()
         end
         error(why, 2)
     end
-    for _, file in ipairs(load) do run(root .. "/" .. file) end
+    for _, file in ipairs(load) do files[#files + 1] = root .. "/" .. file end
+    return files
+end
+
+-- The addon's private table, shared by every file the harness loads, as the
+-- client shares one per addon.
+local ns = {}
+
+-- The TOC's library lines: LibGlass, then LibGroupBuffs. Each file gets
+-- ("Wildly", ns), as in the client.
+function H.loadLibrary()
+    for _, path in ipairs(H.libraryScripts()) do run(path, "Wildly", ns) end
 end
 
 -- The TOC's files the port has not reached yet. They are the TBC code, which
@@ -89,13 +122,13 @@ end
 -- Wildly.API, so the list cannot outlive the port.
 H.NOT_YET_PORTED = {}
 
--- Everything the TOC loads that has been ported, in its order: the library,
+-- Everything the TOC loads that has been ported, in its order: the libraries,
 -- then Wildly's files. Returns the test seams (nil until the file that sets
 -- one is ported) and Wildly.API.
 function H.loadAddon()
     H.loadLibrary()
     for _, file in ipairs(H.tocFiles()) do
-        if not H.NOT_YET_PORTED[file] then run(file) end
+        if not H.NOT_YET_PORTED[file] then run(file, "Wildly", ns) end
     end
     return Wildly._test, Wildly._testConfig, Wildly.API
 end
