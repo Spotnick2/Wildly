@@ -3,28 +3,16 @@
 --
 -- The compat layer, the engine and the window live in the shared library,
 -- with their own tests there. What is checked here is the join: that Wildly
--- really uses the library, refuses one that is missing, broken or too old,
--- and reports rejected events in chat, which is the one behaviour it owns.
+-- really uses the library, refuses one that is missing, broken or too old -
+-- telling the player what they can do about it - and reports what the
+-- library says in chat, which is the one behaviour it owns.
 --
 --   & 'C:\Program Files (x86)\Lua\5.1\lua.exe' tests\test_bridge.lua
 ------------------------------------------------------------
 
 dofile("tests/wow_stubs.lua")
 local H = dofile("tests/harness.lua")
-H.loadLibrary()
-dofile("WildlyCompat.lua")
-local API = Wildly.API
-
-------------------------------------------------------------
--- Wildly.API IS the library's API - not a copy of it
-------------------------------------------------------------
-
-local lib = LibStub("LibGroupBuffs-1.0")
-H.check(lib ~= nil, "LibGroupBuffs-1.0 is loaded")
-H.check(API == lib.API, "Wildly.API is the library's API table itself")
-H.check(Wildly.Settings == lib.Settings, "and Wildly.Settings its Settings")
-H.check(Wildly.Engine == lib.Engine, "and Wildly.Engine its Engine")
-H.check(Wildly.UI == lib.UI, "and Wildly.UI its UI")
+local T, TC, API = H.loadAddon()
 
 ------------------------------------------------------------
 -- The rules every ported file keeps, read from the source
@@ -58,25 +46,64 @@ for _, file in ipairs(H.tocFiles()) do
 end
 H.check(SOURCES["WildlyCompat.lua"] ~= nil, "the bridge itself is scanned")
 
--- Every API function a ported file calls exists in the library: the point of
--- the library is one copy, and a missing one only fails in game.
-for file, lines in pairs(SOURCES) do
-    for _, code in ipairs(lines) do
-        for name in code:gmatch("%f[%w_]API%.([%a_][%w_]*)") do
-            local want = (name == "eventFailures" or name == "eventFailuresByOwner") and "table" or "function"
-            H.check(type(API[name]) == want, file .. " uses API." .. name .. ", so the library must provide it")
-        end
-    end
+------------------------------------------------------------
+-- Wildly.API IS the library's API - not a copy of it
+------------------------------------------------------------
+
+local lib = LibStub("LibGroupBuffs-1.0")
+H.check(lib ~= nil, "LibGroupBuffs-1.0 is loaded")
+H.check(API == lib.API, "Wildly.API is the library's API table itself")
+H.check(Wildly.GB ~= nil and Wildly.GB == lib.instances.Wildly,
+    "and Wildly.GB the instance lib:New made for Wildly")
+-- The r25 bridge copied each piece onto Wildly; the instance replaces them,
+-- and a copy left behind would be a second way in that skips it.
+for _, name in ipairs({ "Settings", "Engine", "UI", "Visibility" }) do
+    H.eq(Wildly[name], nil, "Wildly." .. name .. " is gone: constructors go through Wildly.GB")
 end
 
--- No library function copied into a local. API is shared by every addon that
--- embeds the library, and a newer copy upgrades it in place: `local F = API.F`
--- taken at load time keeps running the old version. Call through API, or
--- wrap: `local function F(...) return API.F(...) end`.
+------------------------------------------------------------
+-- Every API function Wildly calls exists in the library
+--
+-- The point of the library is one copy. If Wildly calls something the
+-- library does not have, it only fails when that code path runs in game - so
+-- read the source and check every call.
+------------------------------------------------------------
+
+local used = {}
+for file, lines in pairs(SOURCES) do
+    for _, code in ipairs(lines) do
+        for name in code:gmatch("%f[%w_]API%.([%a_][%w_]*)") do used[name] = file end
+    end
+end
+local count = 0
+for name, file in pairs(used) do
+    count = count + 1
+    if name == "eventFailures" or name == "eventFailuresByOwner" then
+        H.check(type(API[name]) == "table",
+            file .. " reads API." .. name .. ", so the library must provide it")
+    else
+        H.check(type(API[name]) == "function",
+            file .. " calls API." .. name .. ", so the library must provide it")
+    end
+end
+-- Most API calls moved into the library with the engine and the window, so
+-- this is only a floor proving the scan reads the files at all.
+H.check(count >= 3, "the scan found Wildly's API calls: " .. count)
+
+------------------------------------------------------------
+-- No library function is copied into a local
+--
+-- API is the table LibGroupBuffs shares with every addon that embeds it, and
+-- a newer copy loading later upgrades it in place. `local F = API.F` taken at
+-- load time would keep running the old version beside the new one. Call
+-- through API, or wrap: `local function F(...) return API.F(...) end`.
+------------------------------------------------------------
+
 local captures = {}
 for file, lines in pairs(SOURCES) do
     for n, code in ipairs(lines) do
-        -- Qualified too: `lib.API.F` and `Wildly.API.F` are the same copy.
+        -- Qualified forms count too: `local F = Wildly.API.F` and
+        -- `local F = lib.API.F` copy exactly the same function.
         if code:find("=%s*[%w_%.]-%f[%w_]API%.[%a_][%w_]*%s*$")
             or code:find("=%s*[%w_%.]-%f[%w_]API%.[%a_][%w_]*%s*;") then
             captures[#captures + 1] = file .. ":" .. n .. "  " .. code
@@ -85,15 +112,22 @@ for file, lines in pairs(SOURCES) do
 end
 H.eq(#captures, 0, "no file copies a library function into a local: " .. table.concat(captures, " | "))
 
--- Events only through Wildly.RegisterEvents. A bare frame:RegisterEvent
--- throws on an unknown name or returns false, and the library's own
--- registration prints nothing, so either can leave a handler silently dead.
+------------------------------------------------------------
+-- Events are registered only through Wildly.RegisterEvents
+--
+-- The library prints nothing, and a bare frame:RegisterEvent throws on an
+-- unknown name or returns false. Any registration that skips
+-- Wildly.RegisterEvents - library call or bare method - can leave a handler
+-- silently dead, so neither may appear outside the wrapper.
+------------------------------------------------------------
+
 local direct = {}
 for file, lines in pairs(SOURCES) do
     for n, code in ipairs(lines) do
-        -- WildlyCompat.lua holds the wrapper itself, the one allowed caller.
+        -- WildlyCompat.lua is the wrapper itself, the one allowed caller.
         if file ~= "WildlyCompat.lua" and (code:find("%f[%w_]API%.RegisterEvents%w*%s*%(")
-                                           or code:find(":RegisterEvent%s*%(")) then
+                                             or code:find("%f[%w_]GB%.RegisterEvents%s*%(")
+                                             or code:find(":RegisterEvent%s*%(")) then
             direct[#direct + 1] = file .. ":" .. n .. "  " .. code
         end
     end
@@ -135,6 +169,59 @@ ok, failed = Wildly.RegisterEvents(f, "REFUSED_EVENT")
 H.eq(ok, false, "a false return is a rejection too")
 said = table.concat(WoW.messages, " ", before + 1, #WoW.messages)
 H.check(said:find("REFUSED_EVENT", 1, true), "and it is printed: " .. said)
+-- The label in red, the names plain - matched by the line's shape, not by the
+-- library's words, which are the library's to change.
+H.check(said:find("|cffff6666[^|]*:|r", 1) and not said:find("|cffff6666[^|]*REFUSED_EVENT"),
+    "the label in red, the names plain: " .. said)
+do
+    -- A later library that words it differently keeps the same shape.
+    local n = #WoW.messages
+    Wildly.GB.report("rejected events: SOME_EVENT", "events")
+    local reworded = table.concat(WoW.messages, " ", n + 1, #WoW.messages)
+    H.check(reworded:find("|cffff6666rejected events:|r SOME_EVENT", 1, true),
+        "however the library words it: " .. reworded)
+end
+
+-- With no chat frame nothing can be printed, but the record is what
+-- `/dump Wildly.eventFailures` reads afterwards, and it must still be made.
+do
+    local chat = DEFAULT_CHAT_FRAME
+    -- false, not nil: the strict stub refuses a read of a global it holds no
+    -- value for, and the bridge only tests it for truth.
+    DEFAULT_CHAT_FRAME = false
+    WoW.badEvents.UNHEARD_EVENT = true
+    local registered, why = pcall(Wildly.RegisterEvents, f, "UNHEARD_EVENT")
+    DEFAULT_CHAT_FRAME = chat
+    H.check(registered, "a rejection with no chat frame does not throw: " .. tostring(why))
+    H.check(Wildly.eventFailures.UNHEARD_EVENT ~= nil,
+        "and it is recorded in Wildly's table all the same")
+    -- Left as found, so nothing below depends on this section having run.
+    WoW.badEvents.UNHEARD_EVENT = nil
+    Wildly.eventFailures.UNHEARD_EVENT = nil
+    API.eventFailuresByOwner.Wildly.UNHEARD_EVENT = nil
+end
+
+------------------------------------------------------------
+-- One reporter for everything the library says
+--
+-- The instance carries Wildly's reporter, and the settings object built from
+-- it inherits the same one. Each kind's rewording lives with the file that
+-- owns it (Wildly.reportFilters); a kind nobody rewords is printed as is.
+------------------------------------------------------------
+
+local function reported(text, kind)
+    local n = #WoW.messages
+    Wildly.GB.report(text, kind)
+    return table.concat(WoW.messages, " ", n + 1, #WoW.messages)
+end
+said = reported("Settings are saved again.", "settingsLoaded")
+H.check(said:find("[Wildly]", 1, true) and said:find("|cff55ff55Settings are saved again.|r", 1, true),
+    "a settingsLoaded message is printed in green, with Wildly's prefix: " .. said)
+said = reported("something new to say", "aKindFromALaterLibrary")
+H.check(said:find("something new to say", 1, true),
+    "and a kind this build has no filter for is still said, not dropped: " .. said)
+said = reported(nil, "aKindFromALaterLibrary")
+H.eq(said, "", "and a report with no text says nothing, rather than 'nil'")
 
 ------------------------------------------------------------
 -- A missing library stops loading, with a message that says why
@@ -162,156 +249,282 @@ H.check(err:find("Libs\\LibGroupBuffs-1.0", 1, true),
 H.check(chat:find("cannot start", 1, true) and chat:find("missing", 1, true),
     "and a player is told in chat, where they will see it: " .. chat)
 
--- A library that threw partway through its compat layer: registered, but
--- without the functions defined after the error.
-local halfLoaded = setmetatable({}, { __call = function()
-    return { API = { RegisterEventsReported = function() return true end } }
-end })
-loaded, err, chat = loadWithout(halfLoaded)
-H.check(not loaded, "a library that failed to load completely is refused too")
-H.check(chat:find("completely", 1, true), "and reported as that, not as missing: " .. chat)
+local FLOOR = tonumber((H.readFile("WildlyCompat.lua") or ""):match("NEEDS_MINOR = (%d+)"))
+H.check(FLOOR ~= nil, "the bridge declares the oldest library it works against")
 
--- What the bridge does with each answer.
---
--- Which copies are usable is the library's question now: lib.Status walks its
--- own list of files and says "ok", "incomplete" or "too-old", and the "complete
--- except one piece" cases are tested there (LibGroupBuffs r12). Wildly's job
--- is to react - refuse, and say the right thing to the player - and that is
--- all this file tests.
-local FLOOR = tonumber((H.readFile("WildlyCompat.lua") or ""):match("NEEDS_MINOR%s*=%s*(%d+)"))
--- Every case below is relative to the floor, so without it there is nothing
--- to test - stop here rather than on arithmetic with nil.
-if not FLOOR then error("test_bridge: no NEEDS_MINOR found in WildlyCompat.lua") end
-
--- A fake library whose Status gives a set answer. `status` may also be a
--- function, standing in for Status itself. Records the floor it was asked
--- about, in askedFloor.
-local askedFloor
-local function answering(status, minor)
-    local l = { API = { RegisterEventsReported = function() return true end,
-                        ClickEdges = function() end },
-                Settings = { New = function() end }, Engine = { New = function() end },
-                UI = { New = function() end } }
-    if type(status) == "function" then
-        l.Status = status
-    elseif status then
-        l.Status = function(needs) askedFloor = needs return status, minor end
-    end
+-- A copy with no New at all. The TOC loads Wildly's own copy first, so this
+-- is Wildly's copy not having registered (below the floor) or having
+-- thrown before New was installed (at or above it). Either way the player is
+-- pointed at Wildly, not at other addons.
+local function withoutNew(minor)
+    local l = { API = {} }
     return setmetatable({}, { __call = function() return l, minor end })
 end
 
-askedFloor = nil
-loaded = loadWithout(answering("ok", FLOOR))
-H.check(loaded, "a library that says it is ok is accepted")
--- Without the floor, Status never answers too-old, and the next bump of
--- NEEDS_MINOR would quietly accept an older copy.
-H.eq(askedFloor, FLOOR, "and it was asked about this build's floor")
+loaded, err, chat = loadWithout(withoutNew(FLOOR - 1))
+H.check(not loaded, "a copy without New, below the floor, is refused")
+H.check(chat:find("r" .. (FLOOR - 1), 1, true) and chat:find("r" .. FLOOR, 1, true),
+    "as too old, naming the version in use and the one needed: " .. chat)
+H.check(not chat:find("completely", 1, true), "without claiming a failed load: " .. chat)
+H.check(chat:find("Reinstalling", 1, true),
+    "and pointing at Wildly's own copy, the only thing that can be behind: " .. chat)
 
--- Status is library code on a shared table. If it throws, the player must
--- still be told, not left with an addon that silently does nothing.
-loaded, err, chat = loadWithout(answering(function() error("half-built") end, FLOOR))
-H.check(not loaded, "a library whose Status throws is refused")
-H.check(chat:find("cannot start", 1, true) and chat:find("completely", 1, true),
-    "and the player is told, as a failed load: " .. chat)
-H.check(err:find("half-built", 1, true),
-    "and what it threw reaches the developers' error: " .. err)
-H.check(not chat:find("half-built", 1, true), "but not the player's chat line: " .. chat)
-
--- A status this build has never heard of - a future library with a fourth
--- answer - is refused rather than treated as usable.
-loaded, err, chat = loadWithout(answering("something-new", FLOOR))
-H.check(not loaded, "an unrecognised status is refused")
-H.check(chat:find("completely", 1, true), "rather than assumed to be fine: " .. chat)
-
-loaded, err, chat = loadWithout(answering("incomplete", FLOOR))
-H.check(not loaded, "one that says it is incomplete is refused")
+loaded, err, chat = loadWithout(withoutNew(FLOOR))
+H.check(not loaded, "a copy without New at the floor is refused too")
 H.check(chat:find("completely", 1, true), "as a failed load: " .. chat)
 
--- Complete, just too old. Nothing crashed, so the message must not say it
--- did, and must name both versions.
-loaded, err, chat = loadWithout(answering("too-old", FLOOR - 1))
-H.check(not loaded, "and one that says it is too old")
-H.check(chat:find("r" .. (FLOOR - 1), 1, true) and chat:find("r" .. FLOOR, 1, true),
-    "naming the version in use and the one needed: " .. chat)
-H.check(not chat:find("completely", 1, true), "without claiming a failed load: " .. chat)
+------------------------------------------------------------
+-- What the bridge does with each answer from lib:New
+--
+-- Which copies are usable is the library's question: lib:New refuses a copy
+-- that did not finish loading, a missing or half-loaded LibGlass, and one
+-- older than the floor, and its own tests cover how it decides
+-- (LibGroupBuffs tests/test_new.lua). Wildly's job is to ask with its
+-- floor, refuse to start, and tell the player - so these run against the real
+-- library, put into each state, rather than a fake that could agree with a
+-- bridge asking the wrong question.
+------------------------------------------------------------
 
--- A copy too old to have Status at all. Its absence is the answer, and which
--- answer depends on the version: behind the floor is too-old, at or above it
--- means the file that installs Status threw.
-loaded, err, chat = loadWithout(answering(nil, FLOOR - 1))
-H.check(not loaded, "a copy without Status, below the floor, is refused")
-H.check(chat:find("r" .. (FLOOR - 1), 1, true) and not chat:find("completely", 1, true),
-    "as too old rather than broken: " .. chat)
+LibStub, Wildly = savedLibStub, savedWildly
+local GB_MAJOR, GLASS_MAJOR = "LibGroupBuffs-1.0", "LibGlass-1.0"
 
-loaded, err, chat = loadWithout(answering(nil, FLOOR))
-H.check(not loaded, "a copy without Status at the floor is refused too")
-H.check(chat:find("completely", 1, true),
-    "as a failed load, because the file that installs Status is the last one: " .. chat)
+-- Load the bridge again on the real library. New is once per owner, so the
+-- instance the first load made is set aside for the duration and put back.
+local function reload()
+    local held = lib.instances.Wildly
+    lib.instances.Wildly = nil
+    Wildly = nil
+    local before = #WoW.messages
+    local ok, why = pcall(dofile, "WildlyCompat.lua")
+    local said = table.concat(WoW.messages, " ", before + 1, #WoW.messages)
+    local made = Wildly and Wildly.GB
+    lib.instances.Wildly = held
+    Wildly = savedWildly
+    return ok, tostring(why), said, made
+end
+
+do
+    local ok, why, said, made = reload()
+    H.check(ok, "the real library, as loaded, is accepted: " .. why)
+    H.eq(said, "", "and nothing is said to the player")
+    H.eq(made and made.needs, FLOOR, "and the floor is what the bridge asked New for")
+    H.eq(made and made.owner, "Wildly", "under Wildly's own name")
+end
+
+-- Whatever New said goes to developers, after Wildly's own sentence. Checked
+-- by shape - not by the library's words, which are its to change.
+local function handsOverReason(why, label)
+    local said = why:match("; lib:New said: (.-)%)%. Developers:")
+    H.check(said ~= nil and said ~= "", label .. ": developers get New's own reason: " .. why)
+end
+
+-- A copy that threw partway: registered, never ready. LibStub runs the newest
+-- copy any addon shipped, so it need not be Wildly's - the player is told
+-- how to find out whose, not sent to reinstall Wildly.
+do
+    local ready = lib.ready
+    lib.ready = -1
+    local ok, why, said = reload()
+    lib.ready = ready
+    H.check(not ok, "a library that did not finish loading is refused")
+    H.check(said:find("cannot start", 1, true) and said:find("did not finish loading", 1, true)
+            and said:find(GB_MAJOR, 1, true),
+        "and the player is told so: " .. said)
+    H.check(said:find("scriptErrors", 1, true) and not said:find("Reinstalling", 1, true),
+        "with how to see which addon's copy failed, not a reinstall that would change nothing: " .. said)
+    handsOverReason(why, "an unfinished library")
+end
+
+-- LibGlass missing outright: no addon's copy registered, and Wildly ships
+-- one, so it is Wildly's install.
+do
+    local glass, glassMinor = LibStub.libs[GLASS_MAJOR], LibStub.minors[GLASS_MAJOR]
+    LibStub.libs[GLASS_MAJOR], LibStub.minors[GLASS_MAJOR] = nil, nil
+    local ok, why, said = reload()
+    LibStub.libs[GLASS_MAJOR], LibStub.minors[GLASS_MAJOR] = glass, glassMinor
+    H.check(not ok, "a missing LibGlass is refused")
+    H.check(said:find("cannot start", 1, true) and said:find(GLASS_MAJOR, 1, true),
+        "naming LibGlass to the player: " .. said)
+    H.check(said:find("Reinstalling Wildly", 1, true),
+        "pointing them at reinstalling Wildly: " .. said)
+    handsOverReason(why, "a missing LibGlass")
+
+    -- Registered but never ready: the newest LibGlass threw partway. Wildly's
+    -- own copy loaded (or the name would not be registered), so it is some
+    -- other addon's copy, and reinstalling Wildly would change nothing.
+    local ready = glass.ready
+    glass.ready = nil
+    ok, why, said = reload()
+    glass.ready = ready
+    H.check(not ok, "a LibGlass that did not finish loading is refused too")
+    H.check(said:find(GLASS_MAJOR, 1, true) and said:find("did not finish loading", 1, true)
+            and said:find("scriptErrors", 1, true) and not said:find("Reinstalling", 1, true),
+        "as another addon's copy failing, not as Wildly's install: " .. said)
+    handsOverReason(why, "a half-loaded LibGlass")
+end
+
+-- Both at once: the library's own copy unfinished is what New refuses first,
+-- so it is what the player hears about first.
+do
+    local ready, glass = lib.ready, LibStub.libs[GLASS_MAJOR]
+    local glassReady = glass.ready
+    lib.ready, glass.ready = -1, nil
+    local _, _, said = reload()
+    lib.ready, glass.ready = ready, glassReady
+    H.check(said:find(GB_MAJOR .. " library", 1, true) and not said:find(GLASS_MAJOR, 1, true),
+        "with both unfinished, the library's own copy is named, as New checks it first: " .. said)
+end
+
+-- Anything else New throws is not one of its refusals, and reads as a failed
+-- load: a Lua error, whose file and line mean nothing to a player, and a host
+-- mistake such as a second New for the same owner, which pcall leaves with no
+-- position at all - so a position cannot be what tells them apart.
+do
+    local realNew = lib.New
+    for _, case in ipairs({
+        { label = "a New that crashes", thrown = "attempt to index field 'instances' (a nil value)", level = 1 },
+        { label = "a host mistake", thrown = "LibGroupBuffs-1.0: Wildly already has an instance", level = 0 },
+    }) do
+        lib.New = function() error(case.thrown, case.level) end
+        local ok, why, said = reload()
+        lib.New = realNew
+        H.check(not ok, case.label .. " is refused")
+        H.check(said:find("failed to load completely", 1, true) and said:find("Reinstalling", 1, true),
+            case.label .. " reads as a failed load: " .. said)
+        H.check(not said:find(case.thrown, 1, true) and not said:find(":%d+:"),
+            case.label .. ": its text and position stay out of chat: " .. said)
+        H.check(why:find(case.thrown, 1, true), case.label .. " goes to developers instead: " .. why)
+    end
+end
+
+-- A complete copy that is simply behind the floor.
+do
+    local minor, ready = LibStub.minors[GB_MAJOR], lib.ready
+    LibStub.minors[GB_MAJOR], lib.ready = FLOOR - 1, FLOOR - 1
+    local ok, _, said = reload()
+    LibStub.minors[GB_MAJOR], lib.ready = minor, ready
+    H.check(not ok, "a complete library below the floor is refused")
+    H.check(said:find("r" .. (FLOOR - 1), 1, true) and said:find("r" .. FLOOR, 1, true),
+        "naming the version in use and the one needed: " .. said)
+    H.check(not said:find("did not finish", 1, true), "without claiming a failed load: " .. said)
+end
+
+-- A refusal code this build has never heard of. The library may add codes
+-- and promises only never to rename or remove one, so a new one reads as a
+-- failed load - not as nothing wrong, and not in the library's words.
+do
+    local realNew, realRefusal = lib.New, lib.Refusal
+    lib.New = function() error("a reason from a later library", 0) end
+    lib.Refusal = function() return { code = "something-new", text = "a later library's sentence" } end
+    local ok, why, said = reload()
+    lib.New, lib.Refusal = realNew, realRefusal
+    H.check(not ok, "a refusal with an unknown code is refused")
+    H.check(said:find("failed to load completely", 1, true) and not said:find("later library", 1, true),
+        "as a failed load, in Wildly's words: " .. said)
+    handsOverReason(why, "an unknown code")
+end
+
+-- Asking why reads shared tables another copy may have left half-built, so
+-- it can throw too. The player must still get the line, not a dead addon.
+do
+    local realNew, realRefusal = lib.New, lib.Refusal
+    lib.New = function() error("refused", 0) end
+    lib.Refusal = function() error("half-built") end
+    local ok, why, said = reload()
+    lib.New, lib.Refusal = realNew, realRefusal
+    H.check(not ok and said:find("cannot start", 1, true) and said:find("failed to load completely", 1, true),
+        "a Refusal that throws still ends in the chat line, as a failed load: " .. said)
+    handsOverReason(why, "a Refusal that throws")
+end
+
+-- An active copy with no Refusal to ask: another addon's r26 or r27, active
+-- because Wildly's own copy never registered. The bridge reads the same facts
+-- from the markers, so the player still hears which one it is.
+do
+    local realRefusal = lib.Refusal
+    local minor, ready = LibStub.minors[GB_MAJOR], lib.ready
+    lib.Refusal = nil
+    LibStub.minors[GB_MAJOR], lib.ready = FLOOR - 1, FLOOR - 1
+    local ok, _, said = reload()
+    lib.ready = -1
+    local _, _, unfinished = reload()
+    LibStub.minors[GB_MAJOR], lib.ready = minor, ready
+    lib.Refusal = realRefusal
+    H.check(not ok, "with no Refusal, a copy below the floor is still refused")
+    H.check(said:find("r" .. (FLOOR - 1), 1, true) and said:find("r" .. FLOOR, 1, true),
+        "as too old, naming both versions: " .. said)
+    H.check(unfinished:find("did not finish loading", 1, true) and unfinished:find("scriptErrors", 1, true),
+        "and one that did not finish loading as that: " .. unfinished)
+end
+
+-- After all of that, the real instance is the one Wildly is running on.
+H.check(lib.instances.Wildly == Wildly.GB, "the refusals left Wildly's own instance alone")
 
 ------------------------------------------------------------
 -- The real load order: an older copy loaded first is UPGRADED, not refused
 --
--- The fakes above call the bridge directly, which is not how the game gets
+-- The reloads above call the bridge directly, which is not how the game gets
 -- here. Wildly's TOC loads its own copy of the library BEFORE this file, so
 -- another addon's older copy has already been upgraded by LibStub when the
--- bridge runs - and the real Status has to say "ok" over what the older copy
--- left on the shared table.
+-- bridge runs. The older copies are the ones other consumers ship: r25's six
+-- files, from before lib:New, and r27's one, from before lib:Refusal.
 ------------------------------------------------------------
 
-do
+for _, case in ipairs({
+    { minor = 25, files = { "Compat", "Glass", "Settings", "Engine", "UI", "Visibility" } },
+    { minor = 27, files = { "LibGroupBuffs" } },
+}) do
     local root = H.libraryRoot()
-    -- Load a file or stop, naming it: loadfile's nil would otherwise die as
-    -- "attempt to call a nil value" with no idea which file.
-    local function run(path)
-        local chunk, why = loadfile(path)
-        if not chunk then error("cannot load " .. path .. ": " .. tostring(why), 2) end
-        chunk()
-    end
-
-    -- The older copy's files, named by the library's own XML rather than by
-    -- this file: each runtime file at the library's root, as its previous-tag
-    -- fixture. A file added since then has no fixture and is simply not part
-    -- of the older copy.
-    local L = dofile("tests/libfiles.lua")
-    local current = L.resolve(root)
     local older = {}
-    for _, file in ipairs(current) do
-        local name = file:match("^([%w_]+)%.lua$")
-        local path = name and (root .. "/tests/fixtures/" .. name .. "-r" .. (FLOOR - 1) .. ".lua")
-        local f = path and io.open(path, "r")
-        if f then f:close() older[#older + 1] = path end
+    for _, name in ipairs(case.files) do
+        older[#older + 1] = root .. "/tests/fixtures/" .. name .. "-r" .. case.minor .. ".lua"
     end
-    H.check(#older > 0, "the library checkout carries r" .. (FLOOR - 1) .. " fixtures to load first")
+    local haveFixtures = true
+    for _, path in ipairs(older) do
+        local f = io.open(path, "r")
+        if f then f:close() else haveFixtures = false end
+    end
+    H.check(haveFixtures, "the library checkout carries its r" .. case.minor .. " fixtures to load first")
 
-    if #older > 0 then
+    if haveFixtures then
         Wildly = nil
         -- A LibStub with nothing registered, the way a session starts.
+        local stub = loadfile(root .. "/LibStub/LibStub.lua")
         LibStub = nil
-        run(root .. "/LibStub/LibStub.lua")
+        stub()
 
-        for _, path in ipairs(older) do run(path) end
-        local _, before = LibStub:GetLibrary("LibGroupBuffs-1.0", true)
-        H.eq(before, FLOOR - 1, "another addon's older copy registered first")
+        -- From r26 the library needs LibGlass under it, as every consumer's
+        -- TOC loads it; r25 drew its own glass.
+        if case.minor >= 26 then
+            local glassRoot = H.libGlassRoot()
+            for _, file in ipairs((dofile("tests/libfiles.lua").glass(glassRoot))) do
+                loadfile(glassRoot .. "/" .. file)("SomeOtherAddon", {})
+            end
+        end
+        for _, path in ipairs(older) do loadfile(path)("SomeOtherAddon", {}) end
+        local _, before = LibStub:GetLibrary(GB_MAJOR)
+        H.eq(before, case.minor, "another addon's r" .. case.minor .. " copy registered first")
 
-        -- Now Wildly's own, as its TOC does.
-        for _, file in ipairs(current) do run(root .. "/" .. file) end
-        local _, after = LibStub:GetLibrary("LibGroupBuffs-1.0", true)
-        H.check(type(before) == "number" and type(after) == "number" and after > before,
-            "and Wildly's copy upgrades it: r" .. tostring(before) .. " to r" .. tostring(after))
+        -- Now Wildly's own, as its TOC does: LibGlass, then LibGroupBuffs.
+        local resolved, files = pcall(H.libraryScripts)
+        H.check(resolved, "the libraries resolve: " .. tostring(files))
+        for _, path in ipairs(resolved and files or {}) do loadfile(path)("Wildly", {}) end
+        local _, after = LibStub:GetLibrary(GB_MAJOR)
+        H.check(after > before, "and Wildly's copy upgrades r" .. case.minor .. " to r" .. tostring(after))
 
-        local said = #WoW.messages
+        local before2 = #WoW.messages
         local ok, why = pcall(dofile, "WildlyCompat.lua")
-        H.check(ok, "so the bridge accepts it, despite the older copy having loaded first: " .. tostring(why))
-        H.eq(#WoW.messages, said, "and says nothing to the player")
-        H.check(Wildly and Wildly.API ~= nil, "with the upgraded library in place")
+        H.check(ok, "so the bridge accepts it, despite the r" .. case.minor
+            .. " copy having loaded first: " .. tostring(why))
+        H.eq(#WoW.messages, before2, "and says nothing to the player")
+        H.check(Wildly.API ~= nil and Wildly.GB ~= nil, "with the upgraded library in place")
     end
 
     LibStub, Wildly = savedLibStub, savedWildly
 end
 
--- The ported files stop before building anything when the bridge refused the
--- library, so a missing library is one message rather than a cascade of
--- errors and half-made frames.
+-- The other two files stop before building anything, so a missing library is
+-- one message rather than a cascade of errors and half-made frames.
 Wildly = {}
 local frames = 0
 local realCreateFrame = CreateFrame
@@ -333,10 +546,10 @@ LibStub, Wildly = savedLibStub, savedWildly
 ------------------------------------------------------------
 -- Every hook the source reads GUARDED is a global the stub allows
 --
--- `if Wildly_ForceRebuild then` exists because WildlyConfig.lua can fail to
--- load while Wildly.lua carries on. Under the strict-global stub a name not on
--- the allow-list does not read as nil - it throws - so a guard whose name is
--- missing can never be exercised, and the branch it protects is untested
+-- `if Wildly_OpenConfig then` exists because WildlyConfig.lua can fail to
+-- load while Wildly.lua carries on. Under the strict-global stub a name not
+-- on the allow-list does not read as nil - it throws - so a guard whose name
+-- is missing can never be exercised, and the branch it protects is untested
 -- while looking covered. The list and the guards are checked against each
 -- other here rather than kept in step by hand.
 ------------------------------------------------------------

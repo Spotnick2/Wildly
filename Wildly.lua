@@ -180,7 +180,7 @@ end
 -- target picking, click mapping and UNIT_AURA filtering are shared with
 -- Priestly and Magely. The config accessors are looked up when called, so
 -- WildlyConfig.lua can replace them and tests can install their own.
-local engine = Wildly.Engine.New({
+local engine = Wildly.GB.Engine({
     defs       = DEFS,
     bucketSize = MAX_MEMBERS,           -- pets are split into popover-sized buckets
     showSolo      = function() return Wildly_ShowSolo() end,
@@ -191,9 +191,9 @@ local engine = Wildly.Engine.New({
     learnedDuration = function(spell) return Wildly_GetLearnedDuration(spell) end,
 })
 
-local ST_HAS     = Wildly.Engine.STATES.HAS
-local ST_MISSING = Wildly.Engine.STATES.MISSING
-local ST_UNKNOWN = Wildly.Engine.STATES.UNKNOWN
+local ST_HAS     = Wildly.GB.STATES.HAS
+local ST_MISSING = Wildly.GB.STATES.MISSING
+local ST_UNKNOWN = Wildly.GB.STATES.UNKNOWN
 
 -- What RefreshSpellData derives from the spellbook, kept until it next runs:
 -- the window asks for the icon and the reagent on every rebuild, and in a
@@ -317,9 +317,8 @@ end
 -- reagents and config. WHEN the window opens is the library's too, through
 -- the policy object built below; the events and
 -- slash commands below call the ui's methods.
-local ui = Wildly.UI.New({
-    engine  = engine,
-    owner   = addonName,
+local ui = Wildly.GB.UI({
+    engine  = engine,                   -- owner is the instance's: GB.UI fills it in
     title   = "|cffff7c0aWildly|r",
     version = VERSION,
     appearance = Appearance,
@@ -342,9 +341,18 @@ local ui = Wildly.UI.New({
     setVisible = function(visible) SetConfig("visible", visible) end,
     -- The window parents secure buttons, so in combat the client refuses to
     -- hide it. Every way of closing - the X button, /wildly hide, the toggle -
-    -- lands here, so none of them looks ignored.
-    onCloseDeferred = function()
-        DEFAULT_CHAT_FRAME:AddMessage("|cffff7c0a[Wildly]|r The window closes when you leave combat.")
+    -- lands here, so none of them looks ignored. Since r27 the window's own
+    -- closes do too (the group emptied, "show when solo" unticked), with
+    -- `manual` false. The two are worded apart on purpose, as Magely does:
+    -- after an automatic close the player's X is answered again in the same
+    -- fight, and the same line twice would read as a glitch (LibGroupBuffs#45).
+    onCloseDeferred = function(_, manual)
+        if manual then
+            DEFAULT_CHAT_FRAME:AddMessage("|cffff7c0a[Wildly]|r The window closes when you leave combat.")
+        else
+            DEFAULT_CHAT_FRAME:AddMessage("|cffff7c0a[Wildly]|r Nothing to show here now:"
+                .. " the window closes itself when you leave combat.")
+        end
     end,
 })
 
@@ -354,7 +362,7 @@ local ui = Wildly.UI.New({
 -- three near-identical copies, and the copies produced six defects - each
 -- found in one, fixed there, and left standing in the others
 -- (LibGroupBuffs#22).
-local vis = Wildly.Visibility.New({
+local vis = Wildly.GB.Visibility({
     ui            = ui,
     isMyClass     = function() return g_IsDruid end,
     showSolo      = function() return Wildly_ShowSolo() end,
