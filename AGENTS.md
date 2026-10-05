@@ -239,7 +239,9 @@ and Mangle are TBC spells.
 69977.** Through 69977 nothing loaded back, per-character included (Priestly's `AGENTS.md` and
 `docs/FOREVER-PROBE.md` section 11). 70009 fixed it, measured by two addons on two accounts across a
 full exit (shared notes, `PORTING-TBC-TO-FOREVER.md` section 0). CVars have not been re-measured on
-70009. Wildly itself has not been re-probed there (`MEASURED_ON_BUILD` stays 69977 until it is), so
+70009. `MEASURED_ON_BUILD` is **70205** (#26, at the owner's request): 70205's API dump against
+70009's (priestly#78) and Magely run in game on 70205; `/pprobe` in a fight and the full-exit
+SavedVariables check have not been repeated there, and Wildly itself has not been re-probed. So
 treat persistence as working but keep the addon survivable if a later patch breaks it again: the
 library's `svLoadCheck` marker is what catches a regression.
 
