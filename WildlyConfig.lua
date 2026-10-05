@@ -120,9 +120,16 @@ end
 -- Interface number, not this. So it speaks only in a development copy -
 -- `dev` from Tools/deploy.ps1, or the raw packager token in an unpackaged
 -- checkout. Read at call time, so a test can change the version.
+--
+-- The token is built from two pieces ON PURPOSE. The packager replaces it in
+-- every file it ships, Lua included, so the whole literal here became
+-- `version == "v1.0.3"` in the v1.0.3 release - and every player's copy
+-- counted as a development copy (#25). tests/test_manifest.lua fails on the
+-- whole literal in any shipped Lua file.
+local UNPACKAGED_VERSION = "@" .. "project-version@"
 local function IsDevelopmentCopy()
     local version = API.AddonVersion(ADDON_NAME)
-    return version == "dev" or version == "@project-version@"
+    return version == "dev" or version == UNPACKAGED_VERSION
 end
 
 local settings = Wildly.Settings.New({
