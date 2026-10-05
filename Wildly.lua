@@ -343,13 +343,16 @@ local ui = Wildly.GB.UI({
     -- hide it. Every way of closing - the X button, /wildly hide, the toggle -
     -- lands here, so none of them looks ignored. Since r27 the window's own
     -- closes do too (the group emptied, "show when solo" unticked), with
-    -- `manual` false. Those stay quiet, as they were before r27: the window
-    -- staying up through the fight is wanted, since it shows who needs a
-    -- rebuff, and one line for both would print twice when the player clicks
-    -- X after an automatic close in the same fight (LibGroupBuffs#45, #55).
+    -- `manual` false. The two are worded apart on purpose, as Magely does:
+    -- after an automatic close the player's X is answered again in the same
+    -- fight, and the same line twice would read as a glitch (LibGroupBuffs#45).
     onCloseDeferred = function(_, manual)
-        if not manual then return end
-        DEFAULT_CHAT_FRAME:AddMessage("|cffff7c0a[Wildly]|r The window closes when you leave combat.")
+        if manual then
+            DEFAULT_CHAT_FRAME:AddMessage("|cffff7c0a[Wildly]|r The window closes when you leave combat.")
+        else
+            DEFAULT_CHAT_FRAME:AddMessage("|cffff7c0a[Wildly]|r Nothing to show here now:"
+                .. " the window closes itself when you leave combat.")
+        end
     end,
 })
 

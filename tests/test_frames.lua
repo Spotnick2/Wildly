@@ -153,23 +153,40 @@ WoW.dispatch("PLAYER_REGEN_ENABLED")
 WoW.flushTimers()
 
 -- The window's own closes (the group emptied, "show when solo" unticked) reach
--- onCloseDeferred too since LibGroupBuffs r27, with `manual` false. Those stay
--- quiet: the window staying up through the fight is wanted. And because they
--- say nothing, the player's X after one is answered once, not twice.
+-- onCloseDeferred too since LibGroupBuffs r27, with `manual` false. They are
+-- said in words of their own, as Magely does, so the player's X after one in
+-- the same fight does not print the same line twice.
 setup()
 main = T.mainFrame()
+Wildly_SetConfig("showSolo", true)
+Wildly_OnSoloToggle(true)
+WoW.groupMembers = 0
+WoW.units.party1 = nil
+WoW.dispatch("GROUP_ROSTER_UPDATE")
+WoW.flushTimers()
+T.UpdateUI()
+H.check(main:IsShown(), "solo with show-when-solo on, the window is up")
 WoW.inCombat = true
 at = #WoW.messages
-T.CloseUI(false)
-H.check(main:IsShown(), "an automatic close in combat leaves the window up")
-H.eq(said(at), "", "and says nothing: " .. said(at))
+Wildly_SetConfig("showSolo", false)
+Wildly_OnSoloToggle(false)
+WoW.flushTimers()
+local auto = said(at)
+H.check(main:IsShown(), "unticking it mid-fight leaves the window up until combat ends")
+H.check(auto:find("closes itself when you leave combat", 1, true) ~= nil,
+    "and says the window will close itself: " .. auto)
+H.check(not auto:find("The window closes when you leave combat", 1, true),
+    "in words of its own, not the player's close: " .. auto)
+H.check(WildlyDB.visible ~= false, "and it is not saved as the player closing it")
+-- The player's X in the same fight is still answered, in the player's words.
+at = #WoW.messages
 runScript(main.closeBtn, "OnClick")
-local _, lines = said(at):gsub("leave combat", "")
-H.eq(lines, 1, "then the player's X in the same fight is answered once: " .. said(at))
+H.check(said(at):find("The window closes when you leave combat", 1, true) ~= nil,
+    "the X after it is answered too: " .. said(at))
 WoW.inCombat = false
 WoW.dispatch("PLAYER_REGEN_ENABLED")
-H.check(not main:IsShown(), "and combat's end hides it")
 WoW.flushTimers()
+H.check(not main:IsShown(), "and combat's end hides it")
 
 ------------------------------------------------------------
 -- Events

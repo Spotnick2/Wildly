@@ -337,10 +337,11 @@ The window is LibGroupBuffs' `UI.lua`, which owns these rules; do not reimplemen
   silently refuses to hide, move, re-anchor or stop a drag on them. `ui:Close()` returns false and
   the host says the window closes when combat ends (`onCloseDeferred(ui, manual)`);
   `ui:OnCombatEnd()` on `PLAYER_REGEN_ENABLED` does what was asked. Since r27 the window's own
-  closes reach `onCloseDeferred` too, with `manual` false. **Wildly stays quiet for those**
-  (decided 2026-10-04, LibGroupBuffs#55): the window staying up through the fight is wanted, since
-  it shows who needs a rebuff. If that changes, word the two differently, or the player's X after
-  an automatic close prints the same line twice in one fight.
+  closes reach `onCloseDeferred` too, with `manual` false. **Wildly speaks for both, in different
+  words**, as Magely does (LibGroupBuffs#55): "The window closes when you leave combat." for the
+  player's close, "Nothing to show here now: the window closes itself when you leave combat." for
+  an automatic one. One line for both would print twice when the player clicks X after an
+  automatic close in the same fight.
 - Buttons register **both mouse edges** (`API.ClickEdges`), and **never set `typerelease`** — that
   would cast twice and burn two reagents.
 - No `SecureHandler*`, `_onstate-*` or state drivers: `loadstring_untainted` is missing on this
