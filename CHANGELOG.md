@@ -1,5 +1,26 @@
 # Wildly Changelog
 
+## v1.0.4 - 2026-10-04
+
+### Fixed
+- **The "new client build … re-measure" message no longer appears for players.** v1.0.3 meant to
+  show it only in development copies, but the way a release is packaged made every copy count as
+  one, so it could still show once after a game update. It is a note for the addon's developer
+  and never meant anything for your game; nothing else is affected.
+
+### Changed
+- **The buff window's glass now comes from LibGlass**, a small library shared by the Glass addons
+  and included in the download - nothing extra to install. The window's rim is a little softer;
+  nothing else changes on screen.
+- **Clearer messages if Wildly can't start.** When a shared library is missing or another addon's
+  copy of it failed to load, the chat message now says which, and what to do about it - reinstall
+  Wildly, or turn on `/console scriptErrors 1` to see which addon's copy broke - instead of a
+  developer's error text.
+- **Closing the window in combat is explained either way.** If the window closes itself during a
+  fight - say you untick "show when solo" - Wildly now says it will close when you leave combat,
+  in words of its own, so it no longer looks like it ignored you.
+- Needs LibGroupBuffs r28 and LibGlass r1, both included in the download.
+
 ## v1.0.3 - 2026-10-04
 
 ### Fixed
