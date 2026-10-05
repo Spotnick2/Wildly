@@ -37,7 +37,7 @@ runAsVersion("dev")
 -- the settings check reads the marker's own recorded build rather than a
 -- build the host names, so nothing below depends on WHICH build BROKEN is. What no test can catch is all three being stale against
 -- the client; that takes .build.info or GetBuildInfo() on the real game.
-local MEASURED = "70009"
+local MEASURED = "70205"   -- #26: the dump diff, not a full re-measure
 local BROKEN = "69977"   -- a test fixture now: "a build older than the one running"
 local CLIENT = "70009"  -- what .build.info reports; the shared stub models it
 local FIXED = "70123"    -- any build other than the two above
@@ -53,9 +53,9 @@ H.eq(TC.SV_BROKEN_ON_BUILD, nil,
 -- The stub models the CLIENT, not whichever build Wildly last re-probed:
 -- it is shared with two other addons that re-probe at different times, and it
 -- is the default every other test file runs under, so it should show them
--- what a player sees. MEASURED and CLIENT agree today - Wildly was checked
--- in game on 70009 - so the login notice is silent; they part again the
--- moment the client patches.
+-- what a player sees. They part today: the client is 70205 and MEASURED
+-- follows it (#26), but the stub at this repository's library pin still
+-- models 70009, so CLIENT stays what that stub models until the pin moves.
 WoW.reset()
 H.eq(WoW.build, CLIENT,
     "and the stub's default session runs on the CLIENT's build, not the measured one")
