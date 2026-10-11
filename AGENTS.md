@@ -12,13 +12,13 @@ Repository-specific additions:
 
 - Post every pull-request review and follow-up review on the PR, then link the posted review in the
   final response.
-- Reviews run from `C:\Projects\Wildly`. PR numbers overlap with Priestly and LibGroupBuffs, so name
+- Reviews run from `C:\Projects\WoW\Wildly`. PR numbers overlap with Priestly and LibGroupBuffs, so name
   the repository explicitly when reviewing from elsewhere (`gh pr diff 3 -R Spotnick2/Wildly`).
 - Match `MEASURED_ON_BUILD` in `WildlyConfig.lua` to
-  `C:/Projects/References/forever-api-<version>.<build>.md`. Runtime measurements for this client
-  live in `C:\Projects\Priestly\docs\FOREVER-PROBE.md` (and Wildly's own `docs/` once it has
+  `C:/Projects/WoW/References/forever-api-<version>.<build>.md`. Runtime measurements for this client
+  live in `C:\Projects\WoW\Priestly\docs\FOREVER-PROBE.md` (and Wildly's own `docs/` once it has
   measured something Druid-specific); addon-agnostic Forever findings live in
-  `C:/Projects/References/PORTING-TBC-TO-FOREVER.md`.
+  `C:/Projects/WoW/References/PORTING-TBC-TO-FOREVER.md`.
 
 ## What This Repository Is
 
@@ -33,11 +33,11 @@ maintenance tool.
 Forever port (Interface 20505). Do not add flavor branching for it.
 
 Forever is *Vanilla content running on Blizzard's Retail (Mainline) codebase*: content assumptions
-are Vanilla, API assumptions are Retail. Read `C:\Projects\References\PORTING-TBC-TO-FOREVER.md`
+are Vanilla, API assumptions are Retail. Read `C:\Projects\WoW\References\PORTING-TBC-TO-FOREVER.md`
 before touching an unfamiliar API.
 
 Wildly is one of three thin hosts on **[LibGroupBuffs-1.0](https://github.com/Spotnick2/LibGroupBuffs)**
-(with Priestly and Magely). **Priestly is the worked example**: `C:\Projects\Priestly`, especially
+(with Priestly and Magely). **Priestly is the worked example**: `C:\Projects\WoW\Priestly`, especially
 `Priestly.lua`, `PriestlyCompat.lua` and `PriestlyConfig.lua`. When in doubt about how a host
 should do something, do what Priestly does, and copy its instructions rather than reinventing them.
 
@@ -114,11 +114,11 @@ newest copy any addon loads serves the older surface too; a pin bump is not a re
 
 The seams were designed from Priestly alone, so Wildly will find gaps (r11's `popDivider`
 appearance key was the first). **Never fork or patch the library from here.** Fix it in
-`C:\Projects\LibGroupBuffs`, following that repository's `AGENTS.md`: issue, branch, PR, `MINOR`
+`C:\Projects\WoW\LibGroupBuffs`, following that repository's `AGENTS.md`: issue, branch, PR, `MINOR`
 raised in every runtime file, the previous tag's files added as test fixtures, Priestly's suite run
 against the working copy, merge, tag `r<MINOR>`. Then bump the pin here: `tag:` in `.pkgmeta` and
 `NEEDS_MINOR` in `WildlyCompat.lua`, in a Wildly PR. A need found in LibGlass goes on its issue
-tracker the same way; never edit `C:\Projects\LibGroupBuffs` or `C:\Projects\LibGlass` from a
+tracker the same way; never edit `C:\Projects\WoW\LibGroupBuffs` or `C:\Projects\WoW\LibGlass` from a
 Wildly session.
 
 ## Architecture
@@ -272,9 +272,10 @@ and Mangle are TBC spells.
 69977.** Through 69977 nothing loaded back, per-character included (Priestly's `AGENTS.md` and
 `docs/FOREVER-PROBE.md` section 11). 70009 fixed it, measured by two addons on two accounts across a
 full exit (shared notes, `PORTING-TBC-TO-FOREVER.md` section 0). CVars have not been re-measured on
-70009. `MEASURED_ON_BUILD` is **70205** (#26, at the owner's request): 70205's API dump against
-70009's (priestly#78) and Magely run in game on 70205; `/pprobe` in a fight and the full-exit
-SavedVariables check have not been repeated there, and Wildly itself has not been re-probed. So
+70009. `MEASURED_ON_BUILD` is **70338** (2026-10-11, at the owner's request): 70338's API dump
+against 70205's (Priestly's `docs/FOREVER-PROBE.md`, "70338 against 70205") and the owner's test in
+game on 70338. 70205 (#26) was a dump diff plus Magely in game; the last full re-measure (`/pprobe`
+in a fight, the full-exit SavedVariables check) was 70009, and Wildly itself has not been re-probed. So
 treat persistence as working but keep the addon survivable if a later patch breaks it again: the
 library's `svLoadCheck` marker is what catches a regression.
 
@@ -381,7 +382,7 @@ three get it; a new *global* goes in the layer. Anything the source reads guarde
 of exercising the branch it protects — `tests/test_bridge.lua` checks the guards against the list.
 
 The stub is an **allowlist**: reading any global it does not define fails the run. Before stubbing a new global, confirm it exists in the
-newest `C:/Projects/References/forever-api-<build>.md` and stub it with the client's exact
+newest `C:/Projects/WoW/References/forever-api-<build>.md` and stub it with the client's exact
 signature; never add one because a test failed. Strict globals do not cover **methods** — for
 anything built on a widget method, execute it and assert what it produced.
 
