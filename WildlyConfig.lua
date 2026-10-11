@@ -60,15 +60,15 @@ local DEFAULTS = {
 -- MEASURED_ON_BUILD after re-measuring (AGENTS.md); the library warns at every
 -- real login until then.
 --
--- MEASURED_ON_BUILD is 70205, the installed client (.build.info,
--- wow_classic_beta 1.60.1.70205), as of 2026-10-04 (#26), at the owner's
--- request: 70205's API dump against 70009's (priestly#78): nothing Priestly, Wildly,
--- Magely or LibGroupBuffs calls was removed or changed signature. And Magely
--- v1.0.4 (LibGroupBuffs r27) ran in game on 70205 with no errors - the same
--- engine, window and client, though not this addon itself.
--- NOT re-run on 70205: Priestly's /pprobe in a fight and the full-exit
--- SavedVariables check; those stand as measured on 70009 (priestly#60). The
--- config-seam test pins this literally, so a bump here alone fails it.
+-- MEASURED_ON_BUILD is 70338, the installed client (.build.info,
+-- wow_classic_beta 1.60.1.70338, built Oct 9 2026), as of 2026-10-11:
+-- 70338's API dump against 70205's - nothing Priestly, Wildly, Magely,
+-- LibGroupBuffs or LibGlass calls was removed or changed signature (Priestly's
+-- docs/FOREVER-PROBE.md, "70338 against 70205") - and the owner tested in game
+-- on 70338. 70205 before it (#26) was a dump diff plus Magely in game; the
+-- last full re-measure, Priestly's /pprobe in a fight and the full-exit
+-- SavedVariables check, was 70009 (priestly#60). The config-seam test pins
+-- this literally, so a bump here alone fails it.
 --
 -- There is no companion constant for the settings check. Wildly used to pass
 -- SV_BROKEN_ON_BUILD and the library trusted a returning marker on every
@@ -80,7 +80,7 @@ local DEFAULTS = {
 -- exit, so a marker returning under a different build cannot be the
 -- in-process cache a relog hands back. 70009 fixed loading for real, and that
 -- reads it correctly with nothing here to keep current.
-local MEASURED_ON_BUILD = "70205"
+local MEASURED_ON_BUILD = "70338"
 
 -- config-owner: begin
 -- The two saved tables, created on first use. WildlyDB holds the settings
