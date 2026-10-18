@@ -83,8 +83,9 @@ this section is deleted. Update this section as slices land, and delete it when 
 - `Tools/deploy.ps1` — deploy to the local Forever AddOns folder, both libraries included
   (LibGlass by its own `Tools/deploy.ps1`, first).
 - `.github/workflows/package-check.yml` — tests against the pinned libraries, a dry-run package,
-  and a check that the zip is exactly the addon and both libraries at their pins. Publishes
-  nothing.
+  and a check that the zip is exactly the addon and both libraries at their pins. On a tag it then
+  publishes that zip as a GitHub Release and on Wago Addons (see Releasing).
+- `tests/release_files.sh` — the tag's release notes and `release.json`, for those two jobs.
 - `.pkgmeta`, `README.md`, `CHANGELOG.md`, `LICENSE` — packaging and user-facing material.
 
 **Two embedded libraries, side by side: LibGlass-1.0 and LibGroupBuffs-1.0.** LibGroupBuffs draws
@@ -419,8 +420,33 @@ pwsh Tools\deploy.ps1
 ## Releasing
 
 CurseForge (project **1542496**) builds from a repository webhook when it sees a tag, and
-publishes `CHANGELOG.md` as the release notes. **Do not add a release workflow**; it would publish
-a second time (see Priestly's `AGENTS.md`, Packaging, for the history).
+publishes `CHANGELOG.md` as the release notes. The same tag's `package-check` run then publishes
+the zip it built and checked as a GitHub Release (with `release.json`) and on
+[Wago Addons](https://addons.wago.io/addons/wildly) (project `aN0alQ6j`), with the tag's
+`CHANGELOG.md` section as the notes on both (#39). A tag therefore reaches three places: watch its
+run, not just CurseForge. The shared guide is `C:\Projects\WoW\References\RELEASING.md`.
+
+**Never let the packager publish from CI.** It only ever runs with `-d`. On a tag without it, it
+would publish a second time alongside the webhook (see Priestly's `AGENTS.md`, Packaging, for the
+history), and send the whole `CHANGELOG.md` to GitHub and Wago. `package-check.yml` has three jobs:
+- **`check`**, on every pull request, push to `main` and tag: the syntax check, the unit tests, the
+  `-d` dry-run package, the zip's exact contents, and `tests/release_files.sh` (the tag's notes and
+  `release.json`, read from the packaged TOC). It keeps the zip and those two files as artifacts,
+  and has read-only permissions.
+- **`release`**, on a tag once `check` passed: a GitHub Release with **that** zip, `release.json`
+  (so addon managers such as WowUp pick the Forever zip) and the tag's section as the notes.
+  Alpha/beta tags are pre-releases. It's the only job with `contents: write`.
+- **`wago`**, on a tag once `check` passed: the same zip to Wago's upload API, to the project named
+  by the packaged TOC's `## X-Wago-ID:`, with `alpha`/`beta`/`stable` from the tag and
+  `supported_forever_patches` from the interface (16001 → `1.60.1`). It fails if Wago doesn't list
+  that patch for Forever yet (a new client build). Only this job sees the `WAGO_API_TOKEN` secret.
+
+**To publish a tag again** where one target failed (Wago didn't list the patch yet, a network
+error): Actions → Package check → Run workflow **from `main`**, with the tag and `github` or `wago`.
+`check` rebuilds the **tag's** tree, notes included; a fixed changelog on `main` doesn't change
+them. If another tag points at the same commit (an alpha promoted without a code change), `check`
+drops it from its checkout so the zip carries the requested tag's version. A second `github` run
+fails if the release already exists. Delete the release first if it has to be redone.
 
 1. **Every tag needs a `CHANGELOG.md` entry, committed before the tag is pushed**, written for
    players.
@@ -451,3 +477,6 @@ a second time (see Priestly's `AGENTS.md`, Packaging, for the history).
 5. Keep `@project-version@` in the TOC; `Tools/deploy.ps1` rewrites it to `dev` in the deployed
    copy only. Nowhere else: a Lua file that needs the token builds it from pieces, and
    `tests/test_manifest.lua` fails on a whole one in any shipped Lua file.
+6. **Check the tag's `package-check` run**: `release` and `wago` green, the GitHub Release holding
+   the zip and `release.json`, and the Wago version listed for 1.60.1 (RELEASING.md §4). If `check`
+   failed, neither published, but CurseForge's webhook build has already happened.
