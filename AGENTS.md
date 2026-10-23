@@ -211,15 +211,15 @@ clicks, so they cannot disagree. An empty list means no row. Modes, from `Wildly
 | `default` | the group's tanks; yourself if it has none (or you are solo) |
 | `tanks` | tanks only |
 | `self` | yourself only |
-| `everyone` | every player (never pets) |
+| `everyone` | every player, plus pets when Track pets is enabled |
 | `disabled` | no row: `isBuffEnabled("thorns")` is false |
 
-`MembersFor` in `Wildly.lua` passes every other buff's list through untouched. A tank is
+`MembersFor` excludes hunter/warlock pets from Mark, retaining other pet types. A tank is
 `UnitGroupRolesAssigned(unit) == "TANK"` or the raid's `MAINTANK`, collected once into a set of
 unit tokens and forgotten on roster and role events (`PLAYER_ROLES_ASSIGNED`,
 `ROLE_CHANGED_INFORM`). Whether the group "has tanks" is decided over the whole group, not per
 subgroup. Pets are recognised by the engine's own tag - a member `class` of `PET` or `PET_<class>` -
-and never covered.
+and covered only in everyone mode with Track pets enabled.
 
 Two traps the TBC code fell into, which the filter must not repeat:
 

@@ -24,7 +24,8 @@ Wildly shares its engine and window with **Priestly** through the
 * **Works before you have Gift of the Wild.** While you only know Mark of the Wild, left-click
   simply buffs whoever needs it. Nothing is wired to a spell you do not have.
 * **Thorns where it belongs.** Choose who the Thorns row covers: the group's tanks (or you, if it
-  has none), tanks only, yourself, every player, or nobody. Pets never get Thorns.
+  has none), tanks only, yourself, everyone, or nobody. Everyone includes pets when
+  **Track pets** is enabled; self and tank modes cover players only.
 * **Per-member popover.** Mouse over a row for the full list with range indicators and per-person
   click casting.
 * **Group-aware.** It follows party and raid changes, subgroups, and pets.
@@ -34,6 +35,13 @@ Wildly shares its engine and window with **Priestly** through the
 ---
 
 ## Usage
+
+Use the header **-** to minimize to the title bar and **+** to restore. Requests in
+combat wait until combat ends. Minimized state lasts for this session; `/reload`
+or logging in expands the window again. **X** closes the window.
+
+In the popover, **? beside the class icon** means spell range is unknown.
+**? instead of a timer** means the buff cannot be read and there is no cached reading.
 
 ```
 /wildly          toggle the window
@@ -70,6 +78,9 @@ World of Warcraft/_classic_beta_/Interface/AddOns/Wildly/
 ---
 
 ## Beta notes
+
+**Pet eligibility:** hunter and warlock pets are excluded from Mark of the Wild
+tracking and targeting. Thorns includes tracked pets in Everyone mode.
 
 Forever is in beta and the level cap is still low, so some of Wildly is waiting for content to
 catch up:

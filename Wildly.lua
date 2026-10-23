@@ -96,7 +96,7 @@ local MARK = DEFS[1]
 
 -- The engine tags every pet it gathers with a class of "PET" or
 -- "PET_<owner's class>" (for its icon); no player class starts that way.
--- Thorns is for players.
+-- Thorns includes tracked pets only in Everyone mode.
 local function IsPet(member)
     return type(member.class) == "string" and member.class:find("^PET") ~= nil
 end
@@ -154,11 +154,11 @@ local function ThornsMembers(members)
     local mode = EffectiveMode()
     local out = {}
     for _, m in ipairs(members) do
-        if not IsPet(m) then
+        if mode == "everyone" and (not IsPet(m) or Wildly_TrackPets()) then
+            out[#out + 1] = m
+        elseif not IsPet(m) then
             local include
-            if mode == "everyone" then
-                include = true
-            elseif mode == "self" then
+            if mode == "self" then
                 include = UnitIsUnit(m.unit, "player")
             else -- "tanks"
                 include = IsTank(m.unit)
@@ -170,8 +170,17 @@ local function ThornsMembers(members)
 end
 
 local function MembersFor(def, members)
-    if def.id ~= "thorns" then return members end
-    return ThornsMembers(members)
+    if def.id == "thorns" then return ThornsMembers(members) end
+    if def.id ~= "mark" then return members end
+    -- Forever's stat-buff restriction covers hunter and warlock pets.
+    -- Keep other pet types until their eligibility has been established.
+    local out = {}
+    for _, m in ipairs(members) do
+        if m.class ~= "PET_HUNTER" and m.class ~= "PET_WARLOCK" then
+            out[#out + 1] = m
+        end
+    end
+    return out
 end
 
 -- ─── The buff engine (LibGroupBuffs-1.0's Engine.lua) ─────────────────────
@@ -321,6 +330,7 @@ local ui = Wildly.GB.UI({
     engine  = engine,                   -- owner is the instance's: GB.UI fills it in
     title   = "|cffff7c0aWildly|r",
     version = VERSION,
+    minimizable = true,
     appearance = Appearance,
     unknownClassIcon = DRUID_ICON,
     footerItems = FooterItems,
@@ -339,6 +349,10 @@ local ui = Wildly.GB.UI({
     end,
     setPos     = function(pos) SetConfig("pos", pos) end,
     setVisible = function(visible) SetConfig("visible", visible) end,
+    onMinimizeDeferred = function(_, minimized)
+        DEFAULT_CHAT_FRAME:AddMessage("|cffff7c0a[Wildly]|r The window "
+            .. (minimized and "minimizes" or "restores") .. " when you leave combat.")
+    end,
     -- The window parents secure buttons, so in combat the client refuses to
     -- hide it. Every way of closing - the X button, /wildly hide, the toggle -
     -- lands here, so none of them looks ignored. Since r27 the window's own
@@ -572,11 +586,13 @@ SlashCmdList["WILDLY"] = function(msg)
             DEFAULT_CHAT_FRAME:AddMessage("  Right-click  same (no Gift of the Wild known yet)")
         end
         DEFAULT_CHAT_FRAME:AddMessage("  Mouseover    open per-member popover")
+        DEFAULT_CHAT_FRAME:AddMessage("  Header -/+   minimize/restore (this session; waits for combat to end)")
         Say("Popover:")
         DEFAULT_CHAT_FRAME:AddMessage("  Left/Right   buff that person (left casts Gift when known)")
         DEFAULT_CHAT_FRAME:AddMessage("  R = green (in range) / yellow (out of range) / grey (offline)")
         DEFAULT_CHAT_FRAME:AddMessage("  Timer = green >50% / yellow 10-50% / red <10%")
-        DEFAULT_CHAT_FRAME:AddMessage("  ? = buff state unreadable right now (combat aura secrecy)")
+        DEFAULT_CHAT_FRAME:AddMessage("  ? beside the class icon = spell range unknown")
+        DEFAULT_CHAT_FRAME:AddMessage("  ? instead of a timer = buff state unreadable, with no cached reading")
 
     elseif cmd == "config" or cmd == "options" or cmd == "settings" or cmd == "opt" then
         if Wildly_OpenConfig then Wildly_OpenConfig() end
