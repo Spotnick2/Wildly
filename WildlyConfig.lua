@@ -550,7 +550,7 @@ local function BuildPanel(panel)
         { key = "default",  label = "Tanks in a group - yourself if it has none, or when solo" },
         { key = "tanks",    label = "Tanks only" },
         { key = "self",     label = "Yourself only" },
-        { key = "everyone", label = "Everyone (players, not pets)" },
+        { key = "everyone", label = "Everyone (pets if Track pets is enabled)" },
         { key = "disabled", label = "Off - no Thorns row" },
     }, Wildly_GetThornsMode(), function(key)
         Wildly_SetConfig("thornsMode", key)

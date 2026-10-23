@@ -89,7 +89,7 @@ end
 
 setup("self")
 local members = party()
-H.eq(T.MembersFor(MARK, members), members, "Mark of the Wild covers the whole group, pets included")
+H.eq(units(T.MembersFor(MARK, members)), units(members), "Mark retains unverified mage pets")
 
 ------------------------------------------------------------
 -- Party, mode by mode
@@ -97,7 +97,7 @@ H.eq(T.MembersFor(MARK, members), members, "Mark of the Wild covers the whole gr
 
 setup("everyone")
 members = party()
-H.eq(units(T.MembersFor(THORNS, members)), "party1,party2,player", "everyone: every player, no pet")
+H.eq(units(T.MembersFor(THORNS, members)), "party1,party2,partypet2,player", "everyone: players and tracked pets")
 
 setup("self")
 members = party()
@@ -142,7 +142,7 @@ H.eq(units(T.MembersFor(THORNS, solo)), "player", "default alone: yourself")
 WildlyDB.thornsMode = "tanks"
 H.eq(#T.MembersFor(THORNS, solo), 0, "tanks alone: nobody, you have no tank role")
 WildlyDB.thornsMode = "everyone"
-H.eq(units(T.MembersFor(THORNS, solo)), "player", "everyone alone: you, never your pet")
+H.eq(units(T.MembersFor(THORNS, solo)), "pet,player", "everyone alone: you and your tracked pet")
 
 ------------------------------------------------------------
 -- Raid: the two TBC traps
@@ -182,7 +182,7 @@ H.eq(units(T.MembersFor(THORNS, members)), "raid3", "a raid without tanks: defau
 
 setup("everyone")
 members = raid()
-H.eq(units(T.MembersFor(THORNS, members)), "raid1,raid2,raid3,raid4", "everyone: all raiders, no pet")
+H.eq(units(T.MembersFor(THORNS, members)), "raid1,raid2,raid3,raid4,raidpet4", "everyone: raiders and tracked pets")
 
 -- The raid roster's MAINTANK belongs to "raid"..index, and only in a raid.
 -- Here roster entry 1 is the main tank: a party unit numbered 1, or raid1
@@ -253,7 +253,7 @@ H.eq(drawn(), "1:mark,99:mark", "a tankless group gets no Thorns row, and keeps 
 -- Changing the mode in the panel reaches the window through the rebuild.
 WildlyDB.thornsMode = "everyone"
 T.UpdateUI()
-H.eq(drawn(), "1:mark,1:thorns,99:mark", "switching to everyone brings the Thorns row back")
+H.eq(drawn(), "1:mark,1:thorns,99:mark,99:thorns", "switching to everyone brings player and pet Thorns rows back")
 
 ------------------------------------------------------------
 -- A role change reaches the window
