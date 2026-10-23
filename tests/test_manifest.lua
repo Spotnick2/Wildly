@@ -209,6 +209,8 @@ H.check(directive("X-Curse-Project-ID") ~= nil, "the CurseForge project is decla
 H.check(tostring(directive("Title")):find("Wildly", 1, true) ~= nil,
     "the Title directive names the addon: " .. tostring(directive("Title")))
 H.eq(directive("X-Curse-Project-ID"), "1542496", "and it is Wildly's CurseForge project")
+-- CI's `wago` job uploads to the project the packaged TOC names (#39).
+H.eq(directive("X-Wago-ID"), "aN0alQ6j", "the Wago project is Wildly's")
 
 ------------------------------------------------------------
 -- The packaged zip must not carry internal documents

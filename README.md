@@ -17,6 +17,10 @@ Wildly shares its engine and window with **Priestly** through the
 
 ## Features
 
+**New in v1.0.6:** minimize/restore controls, a window that stays below bags,
+clearer unknown-state indicators, and corrected pet buff tracking.
+See the [release notes](https://github.com/Spotnick2/Wildly/blob/main/CHANGELOG.md).
+
 * **One row per group, per buff**, colour-coded by how many people are missing it, with the lowest
   remaining timer on the bar.
 * **One-click buffing.** Left-click casts Gift of the Wild on the group, right-click buffs the first
@@ -67,6 +71,12 @@ Wildly keeps counting down from the last reading instead of guessing).
 
 Install through the CurseForge app and enable it in game.
 
+### GitHub and Wago
+
+Download from [GitHub Releases](https://github.com/Spotnick2/Wildly/releases/latest)
+or [Wago Addons](https://addons.wago.io/addons/wildly). Both include the required libraries.
+The GitHub release includes `release.json` for compatible addon managers.
+
 ### Manual
 
 Download the release zip and extract it so the folder lands at:
@@ -103,9 +113,13 @@ catch up:
 
 ## Feedback
 
-Open an issue on GitHub or leave a comment on CurseForge. This first Forever release has not been
-played by its author on a druid yet, so reports of anything odd are especially welcome. Typing
+Open an issue on GitHub or leave a comment on CurseForge. Include the addon version,
+client build, locale, and whether the problem happened in combat. Typing
 `/console scriptErrors 1` in game shows Lua errors that the client otherwise hides.
+
+The shared window changes were tested in Priestly. The Druid-specific pet eligibility
+changes in this release still need direct in-game cast confirmation; the automated
+locale and battleground cases do not establish behavior on every live client.
 
 ## Author
 

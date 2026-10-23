@@ -1,8 +1,9 @@
 # Wildly Changelog
 
-## Unreleased
+## v1.0.6 - 2026-10-22
 
 ### Added
+- Releases are also available on GitHub (with addon-manager metadata) and Wago Addons.
 - Header controls to minimize the window and restore it without closing it.
   Requests in combat apply when combat ends. Minimized state is session-only.
 
