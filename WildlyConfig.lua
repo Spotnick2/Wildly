@@ -564,7 +564,8 @@ local function BuildPanel(panel)
     MakeHeader(child, y, "Pet Tracking", PANEL_W)
     MakeCheckbox(child, y, "Track pets (Hunter, Warlock and Mage pets)", "trackPets")
     MakeDesc(child, y,
-        "Pets appear in a separate group at the bottom of the frame. Thorns never covers them.")
+        "Tracked pets appear in a separate group at the bottom of the frame. " ..
+        "Thorns covers them in Everyone mode. Hunter and Warlock pets are excluded from Mark/Gift tracking.")
 
     -- ── Appearance ───────────────────────────────────────────────────────────
     MakeHeader(child, y, "Appearance", PANEL_W)
