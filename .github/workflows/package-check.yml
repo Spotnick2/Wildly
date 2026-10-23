@@ -170,7 +170,8 @@ jobs:
           if [ -z "$tag" ]; then
             tag=$(tr -d '\r' < CHANGELOG.md | sed -n 's/^## \(v[^ ]*\).*/\1/p' | head -1)
           fi
-          bash tests/release_files.sh "$tag" "$zip" "$RUNNER_TEMP/release-files"
+          git show "$GITHUB_SHA:tests/release_files.sh" > "$RUNNER_TEMP/release_files.sh"
+          bash "$RUNNER_TEMP/release_files.sh" "$tag" "$zip" "$RUNNER_TEMP/release-files"
 
       # .release is a hidden directory, and upload-artifact@v4 skips hidden
       # content by default - without include-hidden-files the upload finds
