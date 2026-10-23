@@ -1,5 +1,22 @@
 # Wildly Changelog
 
+## Unreleased
+
+### Added
+- Header controls to minimize the window and restore it without closing it.
+  Requests in combat apply when combat ends. Minimized state is session-only.
+
+### Changed
+- The buff window and popup now sit below normal UI panels, including bags.
+- Updated the embedded libraries to LibGroupBuffs r31 and LibGlass r11.
+
+### Fixed
+- Help distinguishes unknown spell range (`?` beside the class icon) from unreadable
+  buff state (`?` instead of a timer).
+- Hunter and Warlock pets no longer count as missing Mark of the Wild or appear
+  as targets for that buff. Other pet types retain their existing eligibility.
+- Thorns in Everyone mode includes pets when Track pets is enabled. Self and tank modes are unchanged.
+
 ## v1.0.5 - 2026-10-11
 
 ### Changed

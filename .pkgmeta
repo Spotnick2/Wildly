@@ -14,10 +14,10 @@ enable-nolib-creation: no
 externals:
   Libs/LibGlass-1.0:
     url: https://github.com/Spotnick2/LibGlass
-    tag: r5
+    tag: r11
   Libs/LibGroupBuffs-1.0:
     url: https://github.com/Spotnick2/LibGroupBuffs
-    tag: r28
+    tag: r31
 
 manual-changelog:
   filename: CHANGELOG.md
@@ -45,6 +45,7 @@ ignore:
   # Only the library's NON-DOT ignores need repeating: both packagers prune
   # dot-paths themselves. tests/test_manifest.lua mirrors this list from the
   # library's own, so a new dev file there cannot quietly ship.
+  - Libs/LibGroupBuffs-1.0/Tools
   - Libs/LibGroupBuffs-1.0/tests
   - Libs/LibGroupBuffs-1.0/AGENTS.md
   - Libs/LibGroupBuffs-1.0/CLAUDE.md

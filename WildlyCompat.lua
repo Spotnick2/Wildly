@@ -26,7 +26,7 @@ Wildly = Wildly or {}
 -- lib:New arrived, and r28 where lib:Refusal says why it refused; this file
 -- is written against both. Keep this equal to the MINOR .pkgmeta pins;
 -- tests/test_manifest.lua checks that.
-local NEEDS_MINOR = 28
+local NEEDS_MINOR = 31
 
 -- Wildly's own record of the events this client rejected, for
 -- `/dump Wildly.eventFailures`. The library also keeps it, as
