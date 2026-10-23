@@ -6,6 +6,10 @@ rebuff with a single click.
 
 This is the **World of Warcraft: Forever** edition (client 1.60.1, Interface `16001`).
 
+![Wildly buff window in a group](https://raw.githubusercontent.com/Spotnick2/Wildly/main/docs/screenshots/wildly-screen1.png)
+
+*Example from an earlier build; the current window has additional controls.*
+
 > **Playing TBC Classic Anniversary?** Install **v0.1.1**, the last release for that client. It
 > stays available on CurseForge for the Anniversary game version. The Anniversary line is no longer
 > being developed.
@@ -16,10 +20,6 @@ Wildly shares its engine and window with **Priestly** through the
 ---
 
 ## Features
-
-**New in v1.0.6:** minimize/restore controls, a window that stays below bags,
-clearer unknown-state indicators, and corrected pet buff tracking.
-See the [release notes](https://github.com/Spotnick2/Wildly/blob/main/CHANGELOG.md).
 
 * **One row per group, per buff**, colour-coded by how many people are missing it, with the lowest
   remaining timer on the bar.
@@ -35,6 +35,8 @@ See the [release notes](https://github.com/Spotnick2/Wildly/blob/main/CHANGELOG.
 * **Group-aware.** It follows party and raid changes, subgroups, and pets.
 * **Reagent tracking.** The Wild Berries or Wild Thornroot count, for the Gift of the Wild rank you
   know.
+* **Window controls.** Minimize without closing, lock its position, adjust opacity and choose
+  which side the member popover opens on.
 
 ---
 
@@ -58,6 +60,7 @@ In the popover, **? beside the class icon** means spell range is unknown.
 ```
 
 The window opens on its own when you join a group. Wildly does nothing on other classes.
+Settings and window position persist between sessions.
 
 **Row colours:** green = everyone has it · yellow = some missing · red = nobody has it ·
 grey `?` = buff state cannot be read right now (the client hides aura data during combat, so
@@ -87,39 +90,27 @@ World of Warcraft/_classic_beta_/Interface/AddOns/Wildly/
 
 ---
 
-## Beta notes
+## Good to know
 
 **Pet eligibility:** hunter and warlock pets are excluded from Mark of the Wild
 tracking and targeting. Thorns includes tracked pets in Everyone mode.
 
-Forever is in beta and the level cap is still low, so some of Wildly is waiting for content to
-catch up:
+Wildly uses single-target Mark of the Wild until you learn Gift of the Wild. It learns buff
+durations from live auras and relearns them when the client build changes. In the default Thorns
+mode, if no group member has a tank role or raid main-tank assignment, Wildly tracks Thorns on you.
 
-* **Gift of the Wild is not learnable yet.** Every row works single-target until it is, and switches
-  over automatically once you learn it. Its reagent appears in the footer at the same time.
-* **Thorns and tanks.** Wildly counts someone as a tank if they have set the tank role, or are the
-  raid's main tank. Forever has no dungeon finder, so roles may never be set in a party. That is
-  why the default mode puts Thorns on you when the group has no tank.
-* **Buff durations differ from both TBC and Vanilla** and are still being tuned. Wildly learns the
-  real duration from your own buffs rather than assuming one, and forgets what it learned whenever
-  the client build changes.
-* **Settings reset at every login before game build 70009.** That was a client bug affecting every
-  addon: Forever wrote addon settings to disk and never read them back. Build 70009 fixed it. If
-  you played through that patch, Wildly says so in chat once it sees your settings survive it — it
-  can only tell by watching them come back across a game update, so a fresh install on an
-  already-fixed build simply works and says nothing.
+Forever can hide aura data during combat. Wildly uses its last observation and shows `?` if no
+reliable reading is available. Window movement, closing and minimize/restore requests made during
+combat take effect after combat ends.
 
 ---
 
 ## Feedback
 
-Open an issue on GitHub or leave a comment on CurseForge. Include the addon version,
+Open an [issue on GitHub](https://github.com/Spotnick2/Wildly/issues) or leave a comment on
+CurseForge. Include the addon version,
 client build, locale, and whether the problem happened in combat. Typing
 `/console scriptErrors 1` in game shows Lua errors that the client otherwise hides.
-
-The shared window changes were tested in Priestly. The Druid-specific pet eligibility
-changes in this release still need direct in-game cast confirmation; the automated
-locale and battleground cases do not establish behavior on every live client.
 
 ## Author
 
