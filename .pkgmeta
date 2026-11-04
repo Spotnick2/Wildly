@@ -17,7 +17,7 @@ externals:
     tag: r11
   Libs/LibGroupBuffs-1.0:
     url: https://github.com/Spotnick2/LibGroupBuffs
-    tag: r31
+    tag: r34
 
 manual-changelog:
   filename: CHANGELOG.md
@@ -47,6 +47,7 @@ ignore:
   # dot-paths themselves. tests/test_manifest.lua mirrors this list from the
   # library's own, so a new dev file there cannot quietly ship.
   - Libs/LibGroupBuffs-1.0/Tools
+  - Libs/LibGroupBuffs-1.0/docs
   - Libs/LibGroupBuffs-1.0/tests
   - Libs/LibGroupBuffs-1.0/AGENTS.md
   - Libs/LibGroupBuffs-1.0/CLAUDE.md

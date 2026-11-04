@@ -6,6 +6,11 @@ rebuff with a single click.
 
 This is the **World of Warcraft: Forever** edition (client 1.60.1, Interface `16001`).
 
+> **[Buffy](https://github.com/Spotnick2/Buffy) is the new consolidated version.** It combines
+> Magely, Priestly and Wildly in one addon on the same engine, and picks Mage, Priest or Druid
+> buffs for the character you log in. It starts with fresh settings rather than importing
+> Wildly's, so disable Wildly while you use it, or you get two buff windows.
+
 ![Wildly buff window in a group](https://raw.githubusercontent.com/Spotnick2/Wildly/main/docs/screenshots/wildly-screen1.png)
 
 *Example from an earlier build; the current window has additional controls.*
@@ -56,7 +61,7 @@ In the popover, **? beside the class icon** means spell range is unknown.
 /wildly config   open the options panel
 /wildly reset    reset the window position
 /wildly pos      why the window is where it is
-/wildly help     full command and click reference
+/wildly help     full command and click reference, then the spell names Wildly reads
 ```
 
 The window opens on its own when you join a group. Wildly does nothing on other classes.
@@ -85,7 +90,7 @@ The GitHub release includes `release.json` for compatible addon managers.
 Download the release zip and extract it so the folder lands at:
 
 ```
-World of Warcraft/_classic_beta_/Interface/AddOns/Wildly/
+World of Warcraft/_forever_/Interface/AddOns/Wildly/
 ```
 
 ---
@@ -108,8 +113,9 @@ combat take effect after combat ends.
 ## Feedback
 
 Open an [issue on GitHub](https://github.com/Spotnick2/Wildly/issues) or leave a comment on
-CurseForge. Include the addon version,
-client build, locale, and whether the problem happened in combat. Typing
+CurseForge. Include whether the problem happened in combat, and the lines `/wildly help` ends
+with: your locale, game build, Wildly and library versions, and the spell names Wildly reads, with
+any it could not read flagged. Typing
 `/console scriptErrors 1` in game shows Lua errors that the client otherwise hides.
 
 ## Author
