@@ -1,5 +1,17 @@
 # Wildly Changelog
 
+## v1.1.0 - 2026-11-04
+
+### Added
+- `/wildly help` now ends with a spell report: your locale, game build, Wildly and library
+  versions, and the name of every spell Wildly matches buffs against, as your client gave it.
+  A name Wildly could not read from the client is flagged and counted, and so is a Gift of the
+  Wild rank it could not read. Please include these lines when reporting a problem, especially on
+  a non-English client.
+
+### Changed
+- Updated the embedded LibGroupBuffs library to r34. LibGlass stays at r11.
+
 ## v1.0.6 - 2026-10-22
 
 ### Added

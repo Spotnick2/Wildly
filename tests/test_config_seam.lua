@@ -39,7 +39,7 @@ runAsVersion("dev")
 -- the client; that takes .build.info or GetBuildInfo() on the real game.
 local MEASURED = "70338"   -- dump diff + the owner in game, 2026-10-11
 local BROKEN = "69977"   -- a test fixture now: "a build older than the one running"
-local CLIENT = "70338"  -- the client modeled by the pinned r31 shared stub
+local CLIENT = "70338"  -- the client modeled by the pinned r34 shared stub
 local FIXED = "70123"    -- any build other than the two above
 
 H.eq(TC.MEASURED_ON_BUILD, MEASURED,
@@ -53,7 +53,7 @@ H.eq(TC.SV_BROKEN_ON_BUILD, nil,
 -- The stub models the CLIENT, not whichever build Wildly last re-probed:
 -- it is shared with two other addons that re-probe at different times, and it
 -- is the default every other test file runs under, so it should show them
--- what a player sees. The r31 pin models 70338, matching MEASURED without
+-- what a player sees. The r34 pin models 70338, matching MEASURED without
 -- claiming a new runtime measurement.
 WoW.reset()
 H.eq(WoW.build, CLIENT,

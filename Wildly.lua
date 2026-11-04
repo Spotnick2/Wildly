@@ -555,6 +555,70 @@ end)
 
 local function Say(text) DEFAULT_CHAT_FRAME:AddMessage("|cffff7c0a[Wildly]|r " .. text) end
 
+-- ─── Spell report ────────────────────────────────────────────────────────────
+-- The names Wildly matches auras against, as this client gave them, printed
+-- at the end of /wildly help. It is the one diagnostic that settles a
+-- non-English "nothing works" report (#46, #51): a name still on its English
+-- fallback reads as missing on everyone. The library answers with data
+-- (Engine:SpellReport); the wording is Wildly's, after Priestly's.
+--
+-- The Gift rank needs no read first, unlike Priestly's Prayer rank:
+-- RefreshDerived reads it whenever spells change, window open or not, and
+-- that read is what records an unreadable rank for the report.
+local FROM_NOTE = {
+    resolved   = "",
+    remembered = " (remembered)",
+    fallback   = " |cffff6666(UNRESOLVED - English name)|r",
+    unknown    = " (provenance unknown)",
+}
+
+local function LiveLibraryMinor()
+    local lib, live = LibStub("LibGroupBuffs-1.0", true)
+    if not live then return "?" end
+    if lib.ready ~= live then
+        return tostring(live) .. " (incomplete; r" .. tostring(lib.ready) .. " complete)"
+    end
+    return live
+end
+
+local function PrintSpellReport()
+    if not DEFAULT_CHAT_FRAME then return end
+    local report = engine:SpellReport()
+    Say("Spell names, as this client gave them:")
+    DEFAULT_CHAT_FRAME:AddMessage(string.format("  locale %s, game build %s, Wildly %s, library r%s",
+        tostring(report.locale), tostring(API.ClientBuild and API.ClientBuild() or "?"),
+        tostring(VERSION), tostring(LiveLibraryMinor())))
+    for _, entry in ipairs(report) do
+        for _, form in ipairs(entry.forms) do
+            DEFAULT_CHAT_FRAME:AddMessage(string.format("  %-7s %-6s %s%s%s",
+                entry.id, form.role, tostring(form.name),
+                FROM_NOTE[form.from] or "", form.known and "" or " - not learned"))
+        end
+    end
+    if report.ranks then
+        for _, r in ipairs(report.ranks) do
+            DEFAULT_CHAT_FRAME:AddMessage(string.format(
+                "  |cffff6666rank unreadable|r  %s  - the client says \"%s\", "
+                .. "which carries no number Wildly can read",
+                tostring(r.name), tostring(r.subtext)))
+        end
+        DEFAULT_CHAT_FRAME:AddMessage("  Rank decides which reagent Gift of the Wild "
+            .. "uses, so the reagent counter stays hidden rather than count "
+            .. "the wrong one. Please report this with the line above.")
+    end
+    if (report.unresolved or 0) > 0 then
+        DEFAULT_CHAT_FRAME:AddMessage("  |cffff6666" .. report.unresolved
+            .. " name(s) could not be read from the client.|r Buffs Wildly cannot name are "
+            .. "read as missing on everyone. Please report this with the lines above.")
+    end
+    -- r34: forms built by an older copy of the library, whose names may be
+    -- either. Counted apart so they are said rather than hidden in a zero.
+    if (report.unknown or 0) > 0 then
+        DEFAULT_CHAT_FRAME:AddMessage("  " .. report.unknown .. " name(s) of unknown origin "
+            .. "(built by an older copy of the library, so English or this client's).")
+    end
+end
+
 SLASH_WILDLY1 = "/wildly"
 SlashCmdList["WILDLY"] = function(msg)
     local cmd = strtrim(msg or ""):lower()
@@ -593,6 +657,7 @@ SlashCmdList["WILDLY"] = function(msg)
         DEFAULT_CHAT_FRAME:AddMessage("  Timer = green >50% / yellow 10-50% / red <10%")
         DEFAULT_CHAT_FRAME:AddMessage("  ? beside the class icon = spell range unknown")
         DEFAULT_CHAT_FRAME:AddMessage("  ? instead of a timer = buff state unreadable, with no cached reading")
+        PrintSpellReport()
 
     elseif cmd == "config" or cmd == "options" or cmd == "settings" or cmd == "opt" then
         if Wildly_OpenConfig then Wildly_OpenConfig() end

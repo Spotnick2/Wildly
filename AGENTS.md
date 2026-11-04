@@ -450,6 +450,10 @@ fails if the release already exists. Delete the release first if it has to be re
 
 1. **Every tag needs a `CHANGELOG.md` entry, committed before the tag is pushed**, written for
    players.
+   A release tag (`vX.Y.Z`, not an alpha or beta) also updates **both READMEs** in its prep PR:
+   `README.md` and the untracked `README.curseforge.md` describe what this release does, and
+   nothing it no longer does. Say in the PR whether `README.curseforge.md` changed: the owner pastes
+   it into CurseForge and Wago after the release (RELEASING.md §3, §4; #53).
 2. The release type comes from the **tag name**: `alpha` → Alpha, `beta` → Beta, else Release.
    CurseForge offers only Release to most users; tag `beta` only to hold a build back.
 3. **Merge only on green CI, and push the tag only after the release-notes commit's `main` run is
