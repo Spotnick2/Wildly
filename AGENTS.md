@@ -466,7 +466,10 @@ error): Actions → Package check → Run workflow **from `main`**, with the tag
 `check` rebuilds the **tag's** tree, notes included; a fixed changelog on `main` doesn't change
 them. If another tag points at the same commit (an alpha promoted without a code change), `check`
 drops it from its checkout so the zip carries the requested tag's version. A second `github` run
-fails if the release already exists. Delete the release first if it has to be redone.
+completes a release an earlier run left unfinished: the release stays a draft until the zip and
+`release.json` are both up, and a retry reuses it, keeps a zip already uploaded, deletes unfinished
+assets, replaces `release.json`, then publishes (the template's step, RELEASING.md §5). The
+release's title is the packaged TOC's Title, colour codes stripped: "Wildly Forever 1.2.0".
 
 1. **Every tag needs a `CHANGELOG.md` entry, committed before the tag is pushed**, written for
    players.
