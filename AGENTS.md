@@ -278,7 +278,7 @@ full exit (shared notes, `PORTING-TBC-TO-FOREVER.md` section 0). CVars have not 
 (nothing Wildly, LibGroupBuffs r34 or LibGlass r11 calls changed) and the owner's Druid smoke check
 on 70959 (`docs/IN-GAME.md`): Wildly loaded and wrote its settings (persistence across a full exit
 was not checked), its window read Mark and Thorns
-live, and the Mark row cast, solo and out of combat. Combat and groups were not checked. The shared stub at r35 still models 70338, so `CLIENT` in
+live, and the Mark row cast, solo and out of combat. Combat and groups were not checked. The shared stub at r36 still models 70338, so `CLIENT` in
 `tests/test_config_seam.lua` stays 70338 until the pin moves to a library release that models
 70959. 70338 (2026-10-11) was a dump diff plus the owner's test in game, 70205 (#26) a dump diff
 plus Magely in game; the last full re-measure (`/pprobe`
