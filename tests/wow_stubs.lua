@@ -12,6 +12,11 @@
 -- What stays here is Wildly's alone: a druid rather than a priest, and the
 -- globals this addon owns.
 --
+-- Since LibGroupBuffs r35 the shared stub runs on WowTestKit: it loads
+-- tests/kit.lua relative to the run's folder, so it is THIS repository's
+-- tests/kit.pin that picks the kit commit and build. This layer builds no
+-- widgets, so it needs no WoW.strictGlobals() of its own at the end.
+--
 --     dofile("tests/wow_stubs.lua")     -- FIRST, in every test file
 --     WoW.reset()
 ------------------------------------------------------------

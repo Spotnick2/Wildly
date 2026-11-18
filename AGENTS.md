@@ -278,7 +278,7 @@ full exit (shared notes, `PORTING-TBC-TO-FOREVER.md` section 0). CVars have not 
 (nothing Wildly, LibGroupBuffs r34 or LibGlass r11 calls changed) and the owner's Druid smoke check
 on 70959 (`docs/IN-GAME.md`): Wildly loaded and wrote its settings (persistence across a full exit
 was not checked), its window read Mark and Thorns
-live, and the Mark row cast, solo and out of combat. Combat and groups were not checked. The shared stub at r34 still models 70338, so `CLIENT` in
+live, and the Mark row cast, solo and out of combat. Combat and groups were not checked. The shared stub at r36 still models 70338, so `CLIENT` in
 `tests/test_config_seam.lua` stays 70338 until the pin moves to a library release that models
 70959. 70338 (2026-10-11) was a dump diff plus the owner's test in game, 70205 (#26) a dump diff
 plus Magely in game; the last full re-measure (`/pprobe`
@@ -365,6 +365,19 @@ Offline, on every change:
 pwsh tests\run.ps1        # luac -p + all unit tests; needs ../LibGlass, ../LibGroupBuffs, Lua 5.1's luac
 ```
 
+The test scaffolding is WowTestKit (`C:\Projects\WoW\WowTestKit`; its README is the reference)
+at the commit and client build `tests\kit.pin` names. `tests\run.ps1` puts that commit in
+`%LOCALAPPDATA%\WowTestKit\<sha>` and hands off to the kit's runner; CI fetches it with
+`tests\fetch_kit.sh`. `tests\kit.lua`, `kit.ps1` and `fetch_kit.sh` are the kit's bootstrap
+copies: never edit them here. A kit need is an issue on the kit, worked around in
+`tests\wow_stubs.lua` with a `-- WowTestKit #N:` comment meanwhile. `tests\run.ps1 -KitDev`
+runs against the `..\WowTestKit` working copy instead of the pin. The kit is loaded by
+LibGroupBuffs' shared stub (since r35), which reads **this** repository's `tests/kit.pin`, so
+Wildly picks its own kit commit and build. `check` / `eq` / `done` are the kit's globals
+(`H.check` / `H.eq` / `H.done` call them), and the kit's `print` goes to `WoW.chat`, so a test
+never reports through `print`. `tests/test_methods.lua` checks every widget method the addon calls
+exists in the pinned build (`Kit.checkMethods`); its floor keeps the exercise from shrinking.
+
 The first lines name each library checkout and revision the tests ran against, and warn when one
 is not at its `.pkgmeta` pin. That is normal while working on a library; it must not be so before
 a release.
@@ -390,8 +403,9 @@ of exercising the branch it protects — `tests/test_bridge.lua` checks the guar
 
 The stub is an **allowlist**: reading any global it does not define fails the run. Before stubbing a new global, confirm it exists in the
 newest `C:/Projects/WoW/References/Forever/api/forever-api-<build>.md` and stub it with the client's exact
-signature; never add one because a test failed. Strict globals do not cover **methods** — for
-anything built on a widget method, execute it and assert what it produced.
+signature; never add one because a test failed. Strict globals do not cover **what a method
+does**: `test_methods` proves a method exists on its widget type, not that it behaves. For anything
+built on a widget method, execute it and assert what it produced.
 
 In game — **nothing ships without this pass**:
 

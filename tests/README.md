@@ -1,7 +1,8 @@
 # Wildly tests
 
 Unit tests that run under **Lua 5.1** (the interpreter WoW uses) with no game client. Plain
-scripts, no external dependencies. Same shape as Priestly's.
+scripts on [WowTestKit](https://github.com/Spotnick2/WowTestKit), the shared scaffolding (its README
+is the reference), at the commit and client build `tests/kit.pin` names. Same shape as Priestly's.
 
 ## Running
 
@@ -20,7 +21,13 @@ A single test, from the repo root so the relative paths resolve:
 Use the Lua **5.1** interpreter, not a newer Lua that may be first on `PATH`. `run.ps1` defaults to
 `C:\Program Files (x86)\Lua\5.1\lua.exe` (override with `-Lua <path>`) and runs `luac -p` over the
 files `Wildly.toc` loads and LibGroupBuffs' first. That check is required: `run.ps1` fails if it
-cannot find `luac.exe` next to `lua.exe` (override with `-Luac <path>`).
+cannot find `luac.exe` next to `lua.exe`, where the kit's runner looks for it (there is no `-Luac`).
+
+`run.ps1` fetches the pinned kit into `%LOCALAPPDATA%\WowTestKit\<sha>` (once; it works offline
+after) and hands off to the kit's runner. `-KitDev` uses the `../WowTestKit` working copy instead,
+to try a kit change. A single test run by hand finds the kit through `WOWTESTKIT` or that cache, so
+run `run.ps1` once first. `kit.lua`, `kit.ps1` and `fetch_kit.sh` are the kit's bootstrap copies:
+never edit them here.
 
 **The tests need both embedded libraries checked out next to this repository**:
 `../LibGroupBuffs` and `../LibGlass`. `run.ps1` takes `-Library <path>` and `-LibGlass <path>`
@@ -50,7 +57,8 @@ pwsh tests/run.ps1 -Library "$TMP/LibGroupBuffs" -LibGlass "$TMP/LibGlass"
   collects callbacks, `C_UnitAuras` with a secrecy switch, known spells, and units with GUIDs and
   surnames. Drive it through the global `WoW` table. `dofile("tests/wow_stubs.lua")` **first** in
   every test.
-- **`harness.lua`** — `check` / `eq`, `readFile`, `tocFiles()`, `libraryRoot()` /
+- **`harness.lua`** — `H.check` / `H.eq` / `H.done` (the kit's global `check` / `eq` / `done`;
+  the kit's `print` goes to `WoW.chat`, so a test never reports through `print`), `readFile`, `tocFiles()`, `libraryRoot()` /
   `libGlassRoot()`, `libraryScripts()`, `loadLibrary()` (LibGlass, then LibGroupBuffs, each through
   its own XML, every file called with `("Wildly", ns)` as the client does) and `loadAddon()` (the
   libraries, then Wildly's files in TOC order, skipping `H.NOT_YET_PORTED` - the files still on TBC
@@ -70,7 +78,7 @@ pwsh tests/run.ps1 -Library "$TMP/LibGroupBuffs" -LibGlass "$TMP/LibGlass"
 
 | File | What it pins down |
 |---|---|
-| `test_manifest.lua` | The TOC: interface 16001, per-character `WildlyDB` plus the account-wide `WildlySVCheck`, load order (LibGlass, LibGroupBuffs, then Wildly's three files), and that the TOC paths, both `.pkgmeta` externals read by path, their pins (a tag, or a full commit whose MINOR is read with `git show`), `NEEDS_MINOR` (r28 or newer) and `.gitignore` agree; both libraries' ignore lists mirrored here; no shipped Lua file holding a whole packager keyword. |
+| `test_manifest.lua` | The TOC: the kit's `Kit.checkToc` (interface 16001, the version token, every listed `.lua` file exists and is listed once), then per-character `WildlyDB` plus the account-wide `WildlySVCheck`, load order (LibGlass, LibGroupBuffs, then Wildly's three files), and that the TOC paths, both `.pkgmeta` externals read by path, their pins (a tag, or a full commit whose MINOR is read with `git show`), `NEEDS_MINOR` (r28 or newer) and `.gitignore` agree; both libraries' ignore lists mirrored here; no shipped Lua file holding a whole packager keyword. |
 | `test_bridge.lua` | `Wildly.GB` is the instance `lib:New` made, asked with the floor, and `Wildly.API` its API; no r25-style copies are left. The one reporter: rejected events recorded even with no chat frame, their label red by the line's shape, `settingsLoaded` green, an unknown kind still said, a nil report silent. `New` against the **real** library put into each state - ok, unfinished, LibGlass missing or half-loaded, both at once, a crash, a host mistake, below the floor, a refusal code Wildly does not know, a `Refusal` that throws, and no `Refusal` at all - checking what the player is told, and that `New`'s own text reaches only developers. The real load order: r25's six files and r27's one, loaded first by another addon, are upgraded and accepted without a word. Also scans every ported file: each `API.*` it uses exists, no library function is copied into a local, and events go only through `Wildly.RegisterEvents`. |
 | `test_availability.lua` | Wildly's DEFS on the engine: which buffs get a row for what the druid knows, what each click casts (Gift when known, Thorns on both buttons), the config toggles layered over availability, localized names. |
 | `test_clicks.lua` | The secure attributes after a rebuild: Mark vs Gift, Thorns on both buttons, targets following who is missing it (a Gift counts), clearing rather than casting on a corpse, PreClick re-aiming, popover rows, both mouse edges, no `typerelease`, and hints that say what a click does. |
@@ -83,6 +91,7 @@ pwsh tests/run.ps1 -Library "$TMP/LibGroupBuffs" -LibGlass "$TMP/LibGlass"
 | `test_config_seam.lua` | The one write path: `Wildly_SetConfig` reports through the hook, the library's `config_scan.lua` finds no direct `WildlyDB` write in any ported file, the owner regions are pinned, and the SavedVariables-fix and new-build checks fire (or stay quiet) on the right logins. |
 | `test_options.lua` | Builds the options panel and clicks everything in it, with spies in place of the hooks `Wildly.lua` defines: each checkbox, both radio groups and the slider save through the setter and ask the window to rebuild; the panel builds when no text has been measured, and opens from `Wildly_OpenConfig`. |
 | `test_libfiles.lua` | Both libraries' file lists, read from their XML: LibGroupBuffs is LibStub plus one runtime file and ships no textures; LibGlass ships its LICENSE and textures; a texture LibGroupBuffs draws that the LibGlass checkout lacks is an error. And that `libfiles.lua` does not mistake a test for its own script mode. |
+| `test_methods.lua` | Every widget method the addon calls, after a wide exercise (window, popover, clicks, drag, minimize, close, combat, the reagent footer, the options panel, every slash command), exists on that widget type in the pinned build (`Kit.checkMethods`), with a floor on how many were recorded. |
 | `test_stub.lua` | The stub entries Wildly added (`strsplit`, `UnitIsUnit`, `GetRaidRosterInfo`, `UnitGroupRolesAssigned`) keep the client's shape. |
 
 ## The stub is an allowlist, and it must model absences

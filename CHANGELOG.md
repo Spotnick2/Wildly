@@ -5,7 +5,10 @@
 ### Changed
 - **Checked on game build 1.60.1.70959**, the current WoW: Forever client. Nothing Wildly relies on
   changed in this build, so there is nothing to do after updating.
-- Updated the embedded LibGlass library to r13. Nothing changes on screen.
+- The buff window's text now uses a font for your client's language. On a Korean or Chinese
+  client, names that used to show as empty boxes now show as text. English and other clients look
+  the same as before.
+- Updated the embedded libraries to LibGlass r13 and LibGroupBuffs r36.
 
 ## v1.1.0 - 2026-11-04
 

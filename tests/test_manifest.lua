@@ -23,6 +23,12 @@ end
 
 local toc = lines("Wildly.toc")
 
+-- What every addon's TOC must get right, from WowTestKit: interface 16001, the
+-- packager's version token, every listed .lua file exists, each entry listed
+-- once. Its existence check covers .lua entries only; the library XML lines
+-- are checked below, against the externals.
+Kit.checkToc("Wildly.toc", { interface = 16001 })
+
 local function directive(name)
     -- Escape the name: "X-Curse-Project-ID" contains "-", which is a Lua
     -- pattern quantifier, so an unescaped match silently finds nothing.
