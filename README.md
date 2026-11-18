@@ -104,6 +104,10 @@ Wildly uses single-target Mark of the Wild until you learn Gift of the Wild. It 
 durations from live auras and relearns them when the client build changes. In the default Thorns
 mode, if no group member has a tank role or raid main-tank assignment, Wildly tracks Thorns on you.
 
+The window's text uses a font for your client's language, so names on a Korean or Chinese client
+show as text. A Korean or Chinese name on an English client still shows as boxes, because the
+English client has no font for it.
+
 Forever can hide aura data during combat. Wildly uses its last observation and shows `?` if no
 reliable reading is available. Window movement, closing and minimize/restore requests made during
 combat take effect after combat ends.
