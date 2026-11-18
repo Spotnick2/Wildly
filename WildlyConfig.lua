@@ -65,11 +65,10 @@ local DEFAULTS = {
 -- against 70338's - nothing Wildly, LibGroupBuffs r34 or LibGlass r11 calls
 -- was removed or changed signature (the changes are mail, title icons,
 -- transmog, game rules and the PLAYER_LEVEL_UP / PARTY_INVITE_REQUEST
--- payloads; widget methods are unchanged) - and Priestly, on the same library,
--- loaded on 70959 and its saved settings came back (Priestly#131/#133, its
--- docs/FOREVER-PROBE.md, "70959 against 70338"). That is all the in-game
--- evidence: no priest buffed and no druid played on 70959, so the library's
--- buff code and Wildly itself have not run on it. 70338 before it
+-- payloads; widget methods are unchanged) - and the owner's Druid smoke check
+-- on 70959 (docs/IN-GAME.md): Wildly v1.1.0 on r34 loaded, its settings came
+-- back, its window read Mark of the Wild and Thorns live, and the Mark row
+-- cast, solo and out of combat. Combat and groups were not checked. 70338 before it
 -- (2026-10-11) was a dump diff plus the owner in game; 70205 (#26) was a
 -- dump diff plus Magely in game; the
 -- last full re-measure, Priestly's /pprobe in a fight and the full-exit

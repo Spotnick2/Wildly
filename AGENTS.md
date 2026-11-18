@@ -56,7 +56,8 @@ The port lands in slices, one issue and PR each:
 
 Slices 1 to 4 are done and **v1.0.0 is the first Forever release** (slice 5). The in-game pass
 had no Druid available, so it was handed to players and testers, and the release notes say so:
-**no Wildly build has been verified in game yet.** The unmeasured items below and the in-game
+**no Wildly build has been verified in game yet.** The first check since is a solo, out-of-combat
+smoke check on 70959 (`docs/IN-GAME.md`). The unmeasured items below and the rest of the in-game
 checklist under Validation are the open work. Record what is measured in `docs/`, and delete this
 section once a pass has been done.
 
@@ -274,10 +275,9 @@ and Mangle are TBC spells.
 `docs/FOREVER-PROBE.md` section 11). 70009 fixed it, measured by two addons on two accounts across a
 full exit (shared notes, `PORTING-TBC-TO-FOREVER.md` section 0). CVars have not been re-measured on
 70009. `MEASURED_ON_BUILD` is **70959** (2026-11-18, #57): 70959's API dump against 70338's
-(nothing Wildly, LibGroupBuffs r34 or LibGlass r11 calls changed) and Priestly, on the same library,
-loading on 70959 with its saved settings coming back (Priestly#131/#133, its `docs/FOREVER-PROBE.md`,
-"70959 against 70338"). No priest buffed and no druid played on 70959 (Wildly's only Druid save is
-from 70840), so neither the library's buff code nor Wildly has run on it. The shared stub at r34 still models 70338, so `CLIENT` in
+(nothing Wildly, LibGroupBuffs r34 or LibGlass r11 calls changed) and the owner's Druid smoke check
+on 70959 (`docs/IN-GAME.md`): Wildly loaded, its settings came back, its window read Mark and Thorns
+live, and the Mark row cast, solo and out of combat. Combat and groups were not checked. The shared stub at r34 still models 70338, so `CLIENT` in
 `tests/test_config_seam.lua` stays 70338 until the pin moves to a library release that models
 70959. 70338 (2026-10-11) was a dump diff plus the owner's test in game, 70205 (#26) a dump diff
 plus Magely in game; the last full re-measure (`/pprobe`
