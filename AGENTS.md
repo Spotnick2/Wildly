@@ -471,8 +471,9 @@ fails if the release already exists. Delete the release first if it has to be re
    - `Libs/LibGroupBuffs-1.0/` holds **4** files: the XML, `LibStub/LibStub.lua`,
      `LibGroupBuffs.lua` and `LICENSE` (`lua tests/libfiles.lua <unzipped>/Wildly/Libs/LibGroupBuffs-1.0 ship
      <unzipped>/Wildly/Libs/LibGlass-1.0` lists all but `LICENSE`). **No `Media/`** there.
-   - `Libs/LibGlass-1.0/` holds **31** at r5: its XML, `LibGlass.lua`, `LibStub/LibStub.lua`, `LICENSE`
-     and 27 textures under `Media/` (r1 had 15, so 19 files; the count moves with the pin) (`lua tests/libfiles.lua --glass <unzipped>/Wildly/Libs/LibGlass-1.0 ship`).
+   - `Libs/LibGlass-1.0/` holds **38** at r13: its XML, `LibGlass.lua`, `LibStub/LibStub.lua`, `LICENSE`
+     and 34 textures under `Media/` (31 from r5 to r11; r13 added 7 button textures; the count moves
+     with the pin) (`lua tests/libfiles.lua --glass <unzipped>/Wildly/Libs/LibGlass-1.0 ship`).
    - Both libraries equal their pinned checkouts (CRs stripped for `.lua` and `.xml`).
    - The released `WildlyConfig.lua` still reads `"@" .. "project-version@"`: the packager
      rewrites a whole keyword in every Lua file it ships (#25).
