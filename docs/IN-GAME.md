@@ -4,6 +4,28 @@ What has been checked in the real client, by build. The full in-game checklist i
 (Validation). Until a pass covers all of it, record each partial check here, including what it does
 **not** cover.
 
+## 70959: `main` before the release, Druid smoke check (2026-11-18, evening)
+
+The same check on the code the next release ships, after LibGlass r13 (#63) and LibGroupBuffs r36
+with the WowTestKit move (#61).
+
+- **Client:** 1.60.1.70959, enUS.
+- **Character:** Drucida-Komakino (SPOTNICK3), as below. "Show when solo" is on.
+- **Addon:** `main` at `0d07196`, deployed with `Tools/deploy.ps1` as `dev`, from clean clones of
+  the pins: LibGroupBuffs r36 and LibGlass r13 (38 files). Script errors on
+  (`/console scriptErrors 1`).
+
+| Check | Result | Evidence |
+|---|---|---|
+| Loads, no errors | ✅ | The owner reported no error, with script errors on. `taint.log` unchanged since 12:30 that day, so the session added no blocked-action entry. |
+| `/wildly help` and the spell report | ✅ | `locale enUS, game build 70959, Wildly dev, library r36`: the deployed library is the one running, and no other addon loaded a newer copy. Mark of the Wild and Thorns resolve; Gift of the Wild is "not learned". |
+| Settings written on 70959 | ✅ (written only) | Both save files rewritten at 18:07:25, `svLoadCheck.build = "70959"`. Written only, for the reason given in the check below. |
+| Window reads a live buff, Mark row casts | ✅ (owner-reported) | The owner opened Wildly's window, left-clicked the Mark row and reloaded. The save can't confirm the read this time: `learnedDurations` still holds 3600 and 600 from the afternoon, and Wildly rewrites a duration only when it changes. |
+
+**Not covered:** everything listed under the check below. The window's font under r36 wasn't
+looked at specifically. On an enUS client it's meant to be the same Arial Narrow as before, which
+Buffy#46 confirmed on the same library.
+
 ## 70959: Druid smoke check (2026-11-18)
 
 The in-game half of the 70959 bump (#57, PR #59), which the Codex review on #59 asked for.
