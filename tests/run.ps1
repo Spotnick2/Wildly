@@ -1,9 +1,11 @@
 <#
-    run.ps1 - Run all Wildly unit tests.
+    run.ps1 - Run all Wildly unit tests, through WowTestKit's runner at the
+    commit tests/kit.pin names (the kit's README).
 
-    The tests are plain Lua 5.1 scripts (no dependencies) that load the addon
-    files against tests/wow_stubs.lua. WoW uses Lua 5.1, so the tests do too -
-    not the newer Lua that may be first on PATH.
+    The tests are plain Lua 5.1 scripts that load the addon files against
+    tests/wow_stubs.lua: Wildly's layer over LibGroupBuffs' shared stub, which
+    runs on the kit. WoW uses Lua 5.1, so the tests do too - not the newer Lua
+    that may be first on PATH.
 
     Wildly embeds two libraries, loaded before its own files: LibGlass-1.0
     (the glass material) and LibGroupBuffs-1.0 (the compat layer, engine and
@@ -16,15 +18,15 @@
     Usage:
         pwsh tests/run.ps1
         pwsh tests/run.ps1 -Lua "C:\path\to\lua5.1.exe"
-        pwsh tests/run.ps1 -Luac "C:\path\to\luac5.1.exe"
         pwsh tests/run.ps1 -Library "D:\src\LibGroupBuffs" -LibGlass "D:\src\LibGlass"
+        pwsh tests/run.ps1 -KitDev        # the ..\WowTestKit working copy instead of the pin
 #>
 
 param(
     [string]$Lua = "C:\Program Files (x86)\Lua\5.1\lua.exe",
-    [string]$Luac = "",
     [string]$Library = "",
-    [string]$LibGlass = ""
+    [string]$LibGlass = "",
+    [switch]$KitDev
 )
 
 $ErrorActionPreference = "Stop"
@@ -76,54 +78,26 @@ function Show-Pin {
 Show-Pin -Name "LibGlass" -Path "Libs/LibGlass-1.0" -Root $LibGlass
 Show-Pin -Name "LibGroupBuffs" -Path "Libs/LibGroupBuffs-1.0" -Root $Library
 
-# Run from the repo root so the tests can dofile('tests/...') and
-# loadfile('Wildly.lua') with paths relative to the project.
-Push-Location $RepoRoot
-try {
-    $failed = 0
+. (Join-Path $PSScriptRoot "kit.ps1")
+$kit = Get-WowTestKit -RepoRoot $RepoRoot -KitDev:$KitDev
 
-    # Syntax-check Wildly's files and LibGroupBuffs': a parse error there
-    # would show up as a confusing load failure inside every test. LibGlass is
-    # checked in its own repository, and loading it is the first thing every
-    # test does. Not optional: skipping it quietly is how a syntax check looks
-    # green while never running.
-    $luac = if ($Luac) { $Luac } else { Join-Path (Split-Path -Parent $Lua) "luac.exe" }
-    if (-not (Test-Path $luac)) {
-        Write-Error "luac (Lua 5.1) not found at: $luac  (pass -Luac <path>)"
-        exit 1
-    }
-    # The addon's own files come from the TOC, like tests/harness.lua reads
-    # them, so a file added there cannot be missed here.
-    $ownFiles = @(Get-Content (Join-Path $RepoRoot "Wildly.toc") |
-        Where-Object { $_ -notmatch '^\s*#' -and $_ -match '\.lua\s*$' } |
-        ForEach-Object { $_.Trim() })
-    if ($ownFiles.Count -eq 0) { Write-Host "Wildly.toc lists no Lua files" -ForegroundColor Red; exit 1 }
-    # The library's files come from tests/libfiles.lua, the one reader of its
-    # XML that the harness, deploy.ps1 and CI also use, checked against the
-    # LibGlass it draws from.
-    $libFiles = & $Lua (Join-Path $PSScriptRoot "libfiles.lua") $Library load $LibGlass
-    if ($LASTEXITCODE -ne 0) { Write-Host "LibGroupBuffs file list FAILED" -ForegroundColor Red; exit 1 }
-    $libFiles = $libFiles | ForEach-Object { Join-Path $Library $_ }
-    & $luac -p @ownFiles @libFiles
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "luac -p FAILED" -ForegroundColor Red
-        exit 1
-    }
-    Remove-Item -LiteralPath (Join-Path $RepoRoot "luac.out") -ErrorAction SilentlyContinue
-    Write-Host "luac -p: ok" -ForegroundColor DarkGray
-
-    Get-ChildItem (Join-Path $PSScriptRoot "test_*.lua") | Sort-Object Name | ForEach-Object {
-        Write-Host "-- $($_.Name) " -NoNewline -ForegroundColor Cyan
-        & $Lua $_.FullName
-        if ($LASTEXITCODE -ne 0) { $failed++ }
-    }
-
-    if ($failed -gt 0) {
-        Write-Host "$failed test file(s) FAILED" -ForegroundColor Red
-        exit 1
-    }
-    Write-Host "All test files passed." -ForegroundColor Green
+# The syntax check covers Wildly's files (the kit's runner reads them from the
+# TOC) and LibGroupBuffs': a parse error there would show up as a confusing
+# load failure inside every test. LibGlass is checked in its own repository,
+# and loading it is the first thing every test does. The kit's runner only
+# warns when luac is missing, and a skipped check looks green while never
+# running, so here it is required.
+$luac = Join-Path (Split-Path -Parent $Lua) "luac.exe"
+if (-not (Test-Path $luac)) {
+    Write-Error "luac (Lua 5.1) not found beside $Lua, where the kit's runner looks for it"
+    exit 1
 }
-finally {
-    Pop-Location
-}
+# The library's files come from tests/libfiles.lua, the one reader of its XML
+# that the harness, deploy.ps1 and CI also use, checked against the LibGlass it
+# draws from.
+$libFiles = & $Lua (Join-Path $PSScriptRoot "libfiles.lua") $Library load $LibGlass
+if ($LASTEXITCODE -ne 0) { Write-Host "LibGroupBuffs file list FAILED" -ForegroundColor Red; exit 1 }
+$libFiles = @($libFiles | ForEach-Object { Join-Path $Library $_ })
+
+& (Join-Path $kit "scripts\run.ps1") -RepoRoot $RepoRoot -Toc "Wildly.toc" -Extra $libFiles -Lua $Lua
+exit $LASTEXITCODE

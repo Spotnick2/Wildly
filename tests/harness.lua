@@ -1,28 +1,26 @@
 ------------------------------------------------------------
--- harness.lua - tiny assertion harness + addon loader.
+-- harness.lua - the addon loader, over WowTestKit's assertions.
 --
 --     local H = dofile("tests/harness.lua")
 --     H.loadLibrary()
 --     H.eq(actual, expected, "what this proves")
 --     H.done("test_thing")
 --
+-- check / eq / done are the kit's globals (tests/kit.pin names the commit);
+-- H.check, H.eq and H.done are the same functions under the names these tests
+-- use. The kit's own FAIL and result lines go to stdout. Its `print` goes to
+-- WoW.chat instead, so nothing here may report through print.
+--
 -- Run from the repo root so the relative paths resolve.
 ------------------------------------------------------------
 
-local H = { run = 0, failures = 0 }
+local H = {}
 
-function H.check(cond, msg)
-    H.run = H.run + 1
-    if not cond then
-        H.failures = H.failures + 1
-        print("  FAIL: " .. (msg or "assertion failed"))
-    end
-end
-
-function H.eq(a, b, msg)
-    H.check(a == b, (msg or "values differ") ..
-        "  (expected " .. tostring(b) .. ", got " .. tostring(a) .. ")")
-end
+-- The kit formats the message with %s, so a missing one would throw instead of
+-- failing. The old harness's defaults stay.
+function H.check(cond, msg) check(cond, msg or "assertion failed") end
+function H.eq(a, b, msg) eq(a, b, msg or "values differ") end
+H.done = done
 
 -- A whole file as text with CRLF normalised, or nil if it does not exist.
 function H.readFile(path)
@@ -162,14 +160,6 @@ function H.secrecy(on)
     WoW.secret = on and true or false
     WoW.auraReadsThrow = on and true or false
     WoW.inCombat = on and true or false
-end
-
-function H.done(name)
-    if H.failures > 0 then
-        print(string.format("%s: %d/%d FAILED", name, H.failures, H.run))
-        os.exit(1)
-    end
-    print(string.format("%s: %d tests passed", name, H.run))
 end
 
 return H

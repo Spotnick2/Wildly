@@ -5,7 +5,7 @@
 ### Changed
 - **Checked on game build 1.60.1.70959**, the current WoW: Forever client. Nothing Wildly relies on
   changed in this build, so there is nothing to do after updating.
-- Updated the embedded LibGlass library to r13. Nothing changes on screen.
+- Updated the embedded libraries to LibGlass r13 and LibGroupBuffs r35. Nothing changes on screen.
 
 ## v1.1.0 - 2026-11-04
 

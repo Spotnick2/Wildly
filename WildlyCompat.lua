@@ -24,9 +24,10 @@ Wildly = Wildly or {}
 -- The oldest library this build of Wildly works against. A floor, not a
 -- feature check: behaviour changes cannot be feature-detected. r26 is where
 -- lib:New arrived, r28 where lib:Refusal says why it refused, and r34 where
--- SpellReport counts names of unknown origin apart (/wildly help). Keep this
+-- SpellReport counts names of unknown origin apart (/wildly help). r35 changes
+-- nothing at runtime: it moved the shared test stub onto WowTestKit. Keep this
 -- equal to the MINOR .pkgmeta pins; tests/test_manifest.lua checks that.
-local NEEDS_MINOR = 34
+local NEEDS_MINOR = 35
 
 -- Wildly's own record of the events this client rejected, for
 -- `/dump Wildly.eventFailures`. The library also keeps it, as

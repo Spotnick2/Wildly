@@ -1,0 +1,7 @@
+# WowTestKit for these tests: the commit, and the client build to test against.
+# build: Wildly's MEASURED_ON_BUILD (WildlyConfig.lua). The shared stub's
+# WoW.build and GetBuildInfo still model 70338 (LibGroupBuffs r35's notes);
+# this only picks the API lists the kit checks against.
+sha=3cba24fd68e35758c19671bcedfefa9ad228c60f
+build=70959
+api=2
