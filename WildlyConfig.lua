@@ -66,8 +66,10 @@ local DEFAULTS = {
 -- was removed or changed signature (the changes are mail, title icons,
 -- transmog, game rules and the PLAYER_LEVEL_UP / PARTY_INVITE_REQUEST
 -- payloads; widget methods are unchanged) - and Priestly, on the same library,
--- has run on 70959 since 2026-11-17 (Priestly#131, its docs/FOREVER-PROBE.md,
--- "70959 against 70338"). Wildly itself was not run on it. 70338 before it
+-- loaded on 70959 and its saved settings came back (Priestly#131/#133, its
+-- docs/FOREVER-PROBE.md, "70959 against 70338"). That is all the in-game
+-- evidence: no priest buffed and no druid played on 70959, so the library's
+-- buff code and Wildly itself have not run on it. 70338 before it
 -- (2026-10-11) was a dump diff plus the owner in game; 70205 (#26) was a
 -- dump diff plus Magely in game; the
 -- last full re-measure, Priestly's /pprobe in a fight and the full-exit

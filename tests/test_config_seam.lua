@@ -37,7 +37,7 @@ runAsVersion("dev")
 -- the settings check reads the marker's own recorded build rather than a
 -- build the host names, so nothing below depends on WHICH build BROKEN is. What no test can catch is all three being stale against
 -- the client; that takes .build.info or GetBuildInfo() on the real game.
-local MEASURED = "70959"   -- dump diff + Priestly in game on the same library, 2026-11-18 (#57)
+local MEASURED = "70959"   -- dump diff + Priestly loading on 70959, 2026-11-18 (#57)
 local BROKEN = "69977"   -- a test fixture now: "a build older than the one running"
 local CLIENT = "70338"  -- the client modeled by the pinned r34 shared stub
 local FIXED = "70123"    -- any build other than the two above
