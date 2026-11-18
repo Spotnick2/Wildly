@@ -273,9 +273,13 @@ and Mangle are TBC spells.
 69977.** Through 69977 nothing loaded back, per-character included (Priestly's `AGENTS.md` and
 `docs/FOREVER-PROBE.md` section 11). 70009 fixed it, measured by two addons on two accounts across a
 full exit (shared notes, `PORTING-TBC-TO-FOREVER.md` section 0). CVars have not been re-measured on
-70009. `MEASURED_ON_BUILD` is **70338** (2026-10-11, at the owner's request): 70338's API dump
-against 70205's (Priestly's `docs/FOREVER-PROBE.md`, "70338 against 70205") and the owner's test in
-game on 70338. 70205 (#26) was a dump diff plus Magely in game; the last full re-measure (`/pprobe`
+70009. `MEASURED_ON_BUILD` is **70959** (2026-11-18, #57): 70959's API dump against 70338's
+(nothing Wildly, LibGroupBuffs r34 or LibGlass r11 calls changed) and Priestly running on 70959 on
+the same library (Priestly#131, its `docs/FOREVER-PROBE.md`, "70959 against 70338"); Wildly itself
+was not run on it. The shared stub at r34 still models 70338, so `CLIENT` in
+`tests/test_config_seam.lua` stays 70338 until the pin moves to a library release that models
+70959. 70338 (2026-10-11) was a dump diff plus the owner's test in game, 70205 (#26) a dump diff
+plus Magely in game; the last full re-measure (`/pprobe`
 in a fight, the full-exit SavedVariables check) was 70009, and Wildly itself has not been re-probed. So
 treat persistence as working but keep the addon survivable if a later patch breaks it again: the
 library's `svLoadCheck` marker is what catches a regression.

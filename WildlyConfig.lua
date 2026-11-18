@@ -60,12 +60,16 @@ local DEFAULTS = {
 -- MEASURED_ON_BUILD after re-measuring (AGENTS.md); the library warns at every
 -- real login until then.
 --
--- MEASURED_ON_BUILD is 70338, the installed client (.build.info,
--- wow_classic_beta 1.60.1.70338, built Oct 9 2026), as of 2026-10-11:
--- 70338's API dump against 70205's - nothing Priestly, Wildly, Magely,
--- LibGroupBuffs or LibGlass calls was removed or changed signature (Priestly's
--- docs/FOREVER-PROBE.md, "70338 against 70205") - and the owner tested in game
--- on 70338. 70205 before it (#26) was a dump diff plus Magely in game; the
+-- MEASURED_ON_BUILD is 70959, the installed client (.build.info 1.60.1.70959;
+-- GetBuildInfo dates it Nov 13 2026), as of 2026-11-18 (#57): 70959's API dump
+-- against 70338's - nothing Wildly, LibGroupBuffs r34 or LibGlass r11 calls
+-- was removed or changed signature (the changes are mail, title icons,
+-- transmog, game rules and the PLAYER_LEVEL_UP / PARTY_INVITE_REQUEST
+-- payloads; widget methods are unchanged) - and Priestly, on the same library,
+-- has run on 70959 since 2026-11-17 (Priestly#131, its docs/FOREVER-PROBE.md,
+-- "70959 against 70338"). Wildly itself was not run on it. 70338 before it
+-- (2026-10-11) was a dump diff plus the owner in game; 70205 (#26) was a
+-- dump diff plus Magely in game; the
 -- last full re-measure, Priestly's /pprobe in a fight and the full-exit
 -- SavedVariables check, was 70009 (priestly#60). The config-seam test pins
 -- this literally, so a bump here alone fails it.
@@ -80,7 +84,7 @@ local DEFAULTS = {
 -- exit, so a marker returning under a different build cannot be the
 -- in-process cache a relog hands back. 70009 fixed loading for real, and that
 -- reads it correctly with nothing here to keep current.
-local MEASURED_ON_BUILD = "70338"
+local MEASURED_ON_BUILD = "70959"
 
 -- config-owner: begin
 -- The two saved tables, created on first use. WildlyDB holds the settings
