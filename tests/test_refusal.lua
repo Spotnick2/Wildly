@@ -81,8 +81,8 @@ for _, case in ipairs({
     end
 end
 
--- A pet leaving prunes the engine, which drops its refusals (#97), so one
--- back within 30 s isn't skipped for a refusal it no longer has.
+-- A pet coming or going prunes the engine, so a departed pet drops its cached
+-- auras (r39 records no refusal for a pet: its name isn't unique).
 -- Wildly's handler acts only once PLAYER_LOGIN found a Druid.
 do
     WoW.dispatch("PLAYER_LOGIN")
@@ -91,6 +91,18 @@ do
     WoW.dispatch("UNIT_PET", "party1")
     T.engine.PruneCache = real
     H.eq(pruned, 1, "UNIT_PET prunes the engine")
+end
+
+-- Players only: a refused cast on a pet (Thorns on Everyone, pets tracked)
+-- isn't recorded, since a pet's name doesn't pin the cast on it.
+do
+    setup({ "MARK_SINGLE" })
+    WoW.SetUnit("partypet1", { name = "Wolfie", guid = "Pet-1", class = "PET" })
+    local row = markRow()
+    if row then
+        refuse("Wolfie")
+        H.eq(T.engine:RefusalOf("partypet1", row._def), nil, "a refusal on a pet isn't recorded")
+    end
 end
 
 H.done("test_refusal")
