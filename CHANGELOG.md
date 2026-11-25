@@ -1,6 +1,6 @@
 # Wildly Changelog
 
-## Unreleased
+## v1.1.2 - 2026-11-25
 
 ### Fixed
 - When the game refuses Mark of the Wild or Thorns with "A more powerful spell is already

@@ -513,9 +513,9 @@ evtFrame:SetScript("OnEvent", function(self, event, arg1, arg2)
 
     elseif event == "UNIT_PET" then
         -- Pet summoned or dismissed: rebuild to add/remove pet rows. Prune
-        -- first, so a pet that left drops its cached auras (LibGroupBuffs
-        -- AGENTS.md asks it of r39 hosts). r39 records no refusal for a pet:
-        -- a pet's name isn't unique, so a refused cast can't be pinned on it.
+        -- the engine first, routine upkeep LibGroupBuffs AGENTS.md asks of
+        -- r39 hosts. r39 records no refusal for a pet: a pet's name isn't
+        -- unique, so a refused cast can't be pinned on it.
         engine:PruneCache()
         ui:ScheduleRefresh()
 
