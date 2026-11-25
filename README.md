@@ -112,6 +112,15 @@ Forever can hide aura data during combat. Wildly uses its last observation and s
 reliable reading is available. Window movement, closing and minimize/restore requests made during
 combat take effect after combat ends.
 
+If the game refuses Mark of the Wild or Thorns with "A more powerful spell is already active" out
+of combat, because something stronger is already on that member, and the refused cast was the rank
+the row casts (your highest; a macro's lower rank doesn't count), the row's single-target click
+skips them for up to 30 seconds: for Mark, both clicks until you learn Gift of the Wild, then the
+right click. Entering combat, or a buff being removed or updated on them, can end it sooner. Wildly
+can't tell in advance whose buff is stronger, so the first cast on that member still fails, and
+when everyone left has been refused the click casts nothing. It applies to players only: a refusal
+on a pet isn't remembered. You can still pick them yourself from the popover.
+
 ---
 
 ## Feedback

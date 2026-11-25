@@ -81,8 +81,8 @@ for _, case in ipairs({
     end
 end
 
--- A pet coming or going prunes the engine, so a departed pet drops its cached
--- auras (r39 records no refusal for a pet: its name isn't unique).
+-- A pet coming or going prunes the engine: routine cache upkeep (r39 records
+-- no refusal for a pet: its name isn't unique).
 -- Wildly's handler acts only once PLAYER_LOGIN found a Druid.
 do
     WoW.dispatch("PLAYER_LOGIN")
