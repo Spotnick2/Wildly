@@ -26,9 +26,10 @@ Wildly = Wildly or {}
 -- lib:New arrived, r28 where lib:Refusal says why it refused, and r34 where
 -- SpellReport counts names of unknown origin apart (/wildly help). r35 moved
 -- the shared test stub onto WowTestKit, and r36 draws the window's text in
--- LibGlass's per-language font. Keep this equal to the MINOR .pkgmeta pins;
--- tests/test_manifest.lua checks that.
-local NEEDS_MINOR = 36
+-- LibGlass's per-language font. r39 adds refusal memory (#97), which Wildly
+-- opts into guarded by `ui.RefusalEvents`. Keep this equal to the MINOR
+-- .pkgmeta pins; tests/test_manifest.lua checks that.
+local NEEDS_MINOR = 39
 
 -- Wildly's own record of the events this client rejected, for
 -- `/dump Wildly.eventFailures`. The library also keeps it, as

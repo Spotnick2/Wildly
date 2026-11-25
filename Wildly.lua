@@ -387,6 +387,18 @@ local vis = Wildly.GB.Visibility({
     setPreference = function(v) SetConfig("visible", v) end,
 })
 
+-- Refusal memory (LibGroupBuffs r39, #97). When the client refuses a buff cast
+-- out of combat with "A more powerful spell is already active" (something
+-- stronger already on that member), whether from the window, an action bar or
+-- a macro, the row's click-time target skips that member for a while. The
+-- library learns it from these events, so each one goes to it whole, from a
+-- frame of its own: the main handler below passes on only two arguments.
+if ui.RefusalEvents then
+    local refusalFrame = CreateFrame("Frame")
+    Wildly.RegisterEvents(refusalFrame, unpack(ui:RefusalEvents()))
+    refusalFrame:SetScript("OnEvent", function(_, event, ...) ui:RefusalEvent(event, ...) end)
+end
+
 -- ─── Global hooks for WildlyConfig.lua ──────────────────────────────────────
 
 function Wildly_ScheduleRefresh()
@@ -499,7 +511,10 @@ evtFrame:SetScript("OnEvent", function(self, event, arg1, arg2)
         if AuraEventIsRelevant(arg1, arg2) then ui:ScheduleRefresh() end
 
     elseif event == "UNIT_PET" then
-        -- Pet summoned or dismissed: rebuild to add/remove pet rows
+        -- Pet summoned or dismissed: rebuild to add/remove pet rows. Prune
+        -- first, so a pet that left drops its cache and any refusal the
+        -- library holds for it (r39, #97): one back within 30 s starts clean.
+        engine:PruneCache()
         ui:ScheduleRefresh()
 
     elseif event == "PLAYER_ROLES_ASSIGNED" or event == "ROLE_CHANGED_INFORM" then

@@ -39,7 +39,7 @@ runAsVersion("dev")
 -- the client; that takes .build.info or GetBuildInfo() on the real game.
 local MEASURED = "70959"   -- dump diff + Priestly loading on 70959, 2026-11-18 (#57)
 local BROKEN = "69977"   -- a test fixture now: "a build older than the one running"
-local CLIENT = "70338"  -- the client modeled by the pinned r36 shared stub
+local CLIENT = "70338"  -- the client modeled by the pinned r39 shared stub
 local FIXED = "70123"    -- any build other than the two above
 
 H.eq(TC.MEASURED_ON_BUILD, MEASURED,
@@ -53,7 +53,7 @@ H.eq(TC.SV_BROKEN_ON_BUILD, nil,
 -- The stub models the CLIENT, not whichever build Wildly last re-probed:
 -- it is shared with two other addons that re-probe at different times, and it
 -- is the default every other test file runs under, so it should show them
--- what a player sees. The r36 pin still models 70338, so CLIENT and MEASURED
+-- what a player sees. The r39 pin still models 70338, so CLIENT and MEASURED
 -- part until a LibGroupBuffs release catches the stub up to 70959 and the pin
 -- moves; CLIENT moves with the pin, never on its own.
 WoW.reset()
